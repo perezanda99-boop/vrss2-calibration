@@ -508,6 +508,17 @@ class VRSS2App {
     // EVENT BINDING
     // ============================================
     bindEvents() {
+        // Logout button
+        const logoutBtn = document.getElementById('logoutBtn');
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', () => {
+                // Limpiar la sesión
+                sessionStorage.removeItem('authenticated');
+                // Redirigir a la página de inicio de sesión
+                window.location.href = 'index.html';
+            });
+        }
+        
         // Refresh button
         document.getElementById('refreshBtn').addEventListener('click', () => {
             this.refreshData();
@@ -920,56 +931,61 @@ class VRSS2App {
         const imageReturnInput = document.getElementById('eventImageReturn');
         const descInput = document.getElementById('eventDescription');
 
-        // Clear previous errors
+        // Limpiar errores previos
         this.clearError();
 
-        // Validate date
-        const date = dateInput.value;
-        if (!date) {
+        // Validar fecha
+        const newDate = dateInput.value;
+        if (!newDate) {
             this.showError(TRANSLATIONS[this.language].errorDateRequired);
             return;
         }
 
-        if (!Utils.isValidDate(date)) {
+        if (!Utils.isValidDate(newDate)) {
             this.showError(TRANSLATIONS[this.language].errorDateRequired);
             return;
         }
 
-        // Check for duplicate (only if not editing)
-        if (!this.currentEditingEvent) {
-            const existingEvent = this.events.find(e => e.date === date);
-            if (existingEvent && (existingEvent.image || existingEvent.imageChange)) {
+        // Verificar si ya existe un evento con la misma fecha (solo si es nuevo o si cambió la fecha)
+        const isEditing = !!this.currentEditingEvent;
+        const isNewDate = isEditing && this.currentEditingEvent.originalDate !== newDate;
+        
+        if (isNewDate || !isEditing) {
+            const dateExists = this.events.some(event => event.date === newDate && 
+                (!isEditing || event.date !== this.currentEditingEvent.originalDate));
+            
+            if (dateExists) {
                 this.showError(TRANSLATIONS[this.language].errorDateDuplicate);
                 return;
             }
         }
 
-        // Validate change image
+        // Validar imagen de cambio
         const file = imageInput.files[0];
         if (file) {
-            // Check file type
+            // Verificar tipo de archivo
             if (!file.type.startsWith('image/')) {
                 this.showError(TRANSLATIONS[this.language].errorImageType);
                 return;
             }
 
-            // Check file size
+            // Verificar tamaño del archivo
             if (file.size > MAX_IMAGE_SIZE) {
                 this.showError(TRANSLATIONS[this.language].errorImageSize);
                 return;
             }
         }
 
-        // Validate return image
-        const fileReturn = imageReturnInput ? imageReturnInput.files[0] : null;
+        // Validar imagen de retorno
+        const fileReturn = imageReturnInput?.files[0];
         if (fileReturn) {
-            // Check file type
+            // Verificar tipo de archivo
             if (!fileReturn.type.startsWith('image/')) {
                 this.showError(TRANSLATIONS[this.language].errorImageType);
                 return;
             }
 
-            // Check file size
+            // Verificar tamaño del archivo
             if (fileReturn.size > MAX_IMAGE_SIZE) {
                 this.showError(TRANSLATIONS[this.language].errorImageSize);
                 return;
@@ -977,81 +993,84 @@ class VRSS2App {
         }
 
         try {
-            // Show loading state
+            // Mostrar estado de carga
             const saveBtn = document.getElementById('saveBtn');
             saveBtn.disabled = true;
             saveBtn.textContent = this.language === 'en' ? 'Saving...' : 'Guardando...';
 
+            // Subir imágenes a Cloudinary si hay archivos nuevos
             let imageData = this.currentImagePreview;
             if (file) {
-                console.log(`📸 Uploading change image to Cloudinary: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
-                // Upload to Cloudinary
+                console.log(`📸 Subiendo imagen de cambio a Cloudinary: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
                 imageData = await Utils.uploadToCloudinary(file, 'events');
-                console.log(`✅ Change image uploaded to Cloudinary`);
+                console.log(`✅ Imagen de cambio subida a Cloudinary`);
             }
 
             let imageReturnData = this.currentReturnImagePreview;
             if (fileReturn) {
-                console.log(`📸 Uploading return image to Cloudinary: ${fileReturn.name} (${(fileReturn.size / 1024 / 1024).toFixed(2)}MB)`);
-                // Upload to Cloudinary
+                console.log(`📸 Subiendo imagen de retorno a Cloudinary: ${fileReturn.name} (${(fileReturn.size / 1024 / 1024).toFixed(2)}MB)`);
                 imageReturnData = await Utils.uploadToCloudinary(fileReturn, 'events');
-                console.log(`✅ Return image uploaded to Cloudinary`);
+                console.log(`✅ Imagen de retorno subida a Cloudinary`);
             }
 
-            // Sanitize description
+            // Sanitizar descripción
             const description = Utils.sanitizeHTML(descInput.value.trim().substring(0, MAX_DESCRIPTION_LENGTH));
 
-            // Create event object with support for multiple images
-            const event = {
-                date,
-                description,
+            // Crear objeto de evento
+            const eventData = {
+                date: newDate,
+                description: description,
                 imageChange: imageData, // Imagen de cambio
-                imageReturn: imageReturnData, // Imagen de devolución
+                imageReturn: imageReturnData, // Imagen de retorno
                 // Mantener compatibilidad con versión anterior
                 image: imageData,
                 timestamp: Date.now()
             };
             
-            console.log(`💾 Saving event: ${date}`, {
+            console.log(`💾 Guardando evento: ${newDate}`, {
                 hasChangeImage: !!imageData,
                 hasReturnImage: !!imageReturnData,
-                description: description ? 'Yes' : 'No'
+                description: description ? 'Sí' : 'No'
             });
 
-            // Clear editing flags
-            this.currentEditingEvent = null;
-            this.currentReturnImagePreview = null;
+            // Si estamos editando y cambió la fecha, eliminamos el evento anterior
+            if (isEditing && isNewDate) {
+                await this.dbManager.deleteEvent(this.currentEditingEvent.originalDate);
+                this.events = this.events.filter(e => e.date !== this.currentEditingEvent.originalDate);
+            }
 
-            // Save to IndexedDB
-            await this.dbManager.saveEvent(event);
+            // Guardar el evento
+            await this.dbManager.saveEvent(eventData);
 
-            // Update local events array
-            const index = this.events.findIndex(e => e.date === date);
-            if (index >= 0) {
-                this.events[index] = event;
+            // Actualizar la lista local de eventos
+            const eventIndex = this.events.findIndex(e => e.date === newDate);
+            if (eventIndex >= 0) {
+                this.events[eventIndex] = eventData;
             } else {
-                this.events.push(event);
+                this.events.push(eventData);
                 this.events.sort((a, b) => new Date(b.date) - new Date(a.date));
             }
 
-            // Show success message
+            // Limpiar banderas de edición
+            this.currentEditingEvent = null;
+            this.currentReturnImagePreview = null;
+
+            // Mostrar mensaje de éxito
             this.showSuccess(TRANSLATIONS[this.language].successSaved);
 
-            // Close modal and refresh UI
-            setTimeout(() => {
-                this.closeUploadModal();
-                this.renderGallery();
-                this.updateStats();
-                this.populateYearFilter();
-            }, 1000);
+            // Cerrar el modal y actualizar la interfaz
+            this.closeUploadModal();
+            this.renderGallery();
+            this.updateStats();
+            this.populateYearFilter();
 
         } catch (error) {
-            console.error('Error saving event:', error);
-            this.showError('Failed to save event. Please try again.');
+            console.error('Error al guardar el evento:', error);
+            this.showError('Error al guardar el evento. Por favor, inténtalo de nuevo.');
         } finally {
             const saveBtn = document.getElementById('saveBtn');
             saveBtn.disabled = false;
-            saveBtn.textContent = TRANSLATIONS[this.language].saveBtn;
+            saveBtn.textContent = isEditing ? TRANSLATIONS[this.language].updateBtn : TRANSLATIONS[this.language].saveBtn;
         }
     }
 
@@ -1478,15 +1497,54 @@ class VRSS2App {
     // EDIT EVENT
     // ============================================
     editEvent(event) {
-        this.currentEditingEvent = event.date;
-        document.getElementById('uploadTitle').textContent = TRANSLATIONS[this.language].editTitle;
-        document.getElementById('saveBtn').textContent = TRANSLATIONS[this.language].updateBtn;
-        document.getElementById('eventDate').value = event.date;
-        document.getElementById('eventDate').disabled = true; // Can't change date
-        document.getElementById('eventDescription').value = event.description || '';
+        this.currentEditingEvent = {
+            originalDate: event.date,  // Guardamos la fecha original
+            event: event
+        };
         
-        // Load change image (usar imageChange o image para compatibilidad)
-        const changeImage = event.imageChange || event.image;
+        const modal = document.getElementById('uploadModal');
+        const title = document.getElementById('uploadTitle');
+        const saveBtn = document.getElementById('saveBtn');
+        const dateInput = document.getElementById('eventDate');
+        const descInput = document.getElementById('eventDescription');
+        
+        // Configuramos el modal para edición
+        title.textContent = TRANSLATIONS[this.language].editTitle;
+        saveBtn.textContent = TRANSLATIONS[this.language].updateBtn;
+        
+        // Habilitamos la edición de la fecha
+        dateInput.value = event.date;
+        dateInput.disabled = false;
+        
+        // Configuramos la descripción
+        descInput.value = event.description || '';
+        
+        // Configuramos la vista previa de las imágenes
+        if (event.imageChange || event.image) {
+            const imgUrl = event.imageChange?.url || event.image?.url || event.imageChange || event.image;
+            this.currentImagePreview = imgUrl;
+            const preview = document.getElementById('imagePreview');
+            preview.style.backgroundImage = `url(${imgUrl})`;
+            preview.classList.add('has-image');
+        }
+        
+        if (event.imageReturn) {
+            this.currentReturnImagePreview = event.imageReturn.url || event.imageReturn;
+            const returnPreview = document.getElementById('imageReturnPreview');
+            if (returnPreview) {
+                returnPreview.style.backgroundImage = `url(${this.currentReturnImagePreview})`;
+                returnPreview.classList.add('has-image');
+            }
+        }
+        
+        // Limpiar inputs de archivo
+        document.getElementById('eventImage').value = '';
+        if (document.getElementById('eventImageReturn')) {
+            document.getElementById('eventImageReturn').value = '';
+        }
+        
+        // Mostrar el modal
+        modal.classList.add('show');
         if (changeImage) {
             this.currentImagePreview = changeImage;
             const preview = document.getElementById('imagePreview');
