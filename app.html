@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VRSS-2 Time Calibration Registry</title>
+    <script>
+        // Verificar autenticación
+        if (sessionStorage.getItem('authenticated') !== 'true') {
+            window.location.href = '/';
+        }
+    </script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #0f172a 100%); color: white; min-height: 100vh; }
+        header { background: rgba(0,0,0,0.3); backdrop-filter: blur(10px); border-bottom: 1px solid rgba(59,130,246,0.3); position: sticky; top: 0; z-index: 1000; }
+        .header-content { max-width: 1280px; margin: 0 auto; padding: 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; }
+        .logo-section { display: flex; align-items: center; gap: 1rem; }
+        .logo { width: 48px; height: 48px; background: linear-gradient(135deg, #60a5fa, #06b6d4); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 24px; }
+        .title-section h1 { font-size: 1.5rem; font-weight: bold; }
+        .title-section p { font-size: 0.875rem; color: #93c5fd; }
+        .lang-btn { padding: 0.5rem 1rem; background: rgba(255,255,255,0.1); border: none; border-radius: 8px; color: white; cursor: pointer; transition: all 0.3s; font-size: 1rem; }
+        .lang-btn:hover { background: rgba(255,255,255,0.2); }
+        .refresh-btn { padding: 0.5rem 1rem; background: rgba(34,197,94,0.2); border: 1px solid rgba(34,197,94,0.3); border-radius: 8px; color: white; cursor: pointer; transition: all 0.3s; font-size: 1rem; display: flex; align-items: center; gap: 0.5rem; }
+        .refresh-btn:hover { background: rgba(34,197,94,0.3); transform: scale(1.05); }
+        .refresh-btn.refreshing { animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .container { max-width: 1280px; margin: 0 auto; padding: 2rem 1rem; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
+        .stat-card { background: rgba(59,130,246,0.2); backdrop-filter: blur(10px); border: 1px solid rgba(96,165,250,0.3); border-radius: 12px; padding: 1.5rem; }
+        .stat-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+        .stat-icon { font-size: 2rem; }
+        .stat-value { font-size: 2rem; font-weight: bold; }
+        #lastEvent { font-size: 1.25rem; }
+        .stat-label { color: #93c5fd; font-size: 0.875rem; }
+        .controls-panel { background: rgba(255,255,255,0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 1.5rem; margin-bottom: 2rem; }
+        .controls-grid { display: grid; grid-template-columns: 1fr auto auto; gap: 1rem; align-items: center; }
+        .search-box { position: relative; }
+        .search-box input { width: 100%; padding: 0.75rem 0.75rem 0.75rem 2.5rem; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; color: white; font-size: 1rem; }
+        .search-box input::placeholder { color: rgba(255,255,255,0.5); }
+        .search-icon { position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); color: rgba(255,255,255,0.5); }
+        select { padding: 0.75rem 1rem; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; color: white; font-size: 1rem; cursor: pointer; }
+        select option { background: #1e293b; }
+        .btn-primary { padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #3b82f6, #06b6d4); border: none; border-radius: 8px; color: white; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; transition: all 0.3s; box-shadow: 0 4px 20px rgba(59,130,246,0.5); font-size: 1rem; }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 25px rgba(59,130,246,0.7); }
+        .gallery-section { background: rgba(255,255,255,0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 1.5rem; }
+        .gallery-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1.5rem; font-size: 1.5rem; font-weight: bold; }
+        .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1.5rem; }
+        .event-card { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; overflow: hidden; cursor: pointer; transition: all 0.3s; }
+        .event-card:hover { border-color: rgba(59,130,246,0.5); transform: translateY(-4px); }
+        .event-image { width: 100%; aspect-ratio: 16/9; background: linear-gradient(135deg, rgba(30,58,138,0.5), rgba(107,33,168,0.5)); display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
+        .event-image img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s; }
+        .event-card:hover .event-image img { transform: scale(1.1); }
+        .event-image .placeholder { font-size: 3rem; opacity: 0.5; }
+        .event-info { padding: 1rem; }
+        .event-date { font-weight: bold; font-size: 1.125rem; color: #93c5fd; }
+        .event-label { font-size: 0.875rem; color: rgba(255,255,255,0.6); margin-top: 0.25rem; }
+        .event-description { font-size: 0.75rem; color: rgba(255,255,255,0.5); margin-top: 0.5rem; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); backdrop-filter: blur(5px); z-index: 2000; padding: 2rem; overflow-y: auto; }
+        .modal.active { display: block; }
+        .modal-content { background: linear-gradient(135deg, #1e293b, #0f172a); border: 1px solid rgba(59,130,246,0.3); border-radius: 12px; padding: 2rem; max-width: 600px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.8); margin: 0 auto; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+        .modal-title { font-size: 1.5rem; font-weight: bold; }
+        .close-btn { background: none; border: none; color: rgba(255,255,255,0.6); font-size: 1.5rem; cursor: pointer; padding: 0; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; transition: all 0.3s; }
+        .close-btn:hover { color: white; }
+        .form-group { margin-bottom: 1rem; }
+        .form-group label { display: block; margin-bottom: 0.5rem; font-weight: 500; }
+        .form-group input, .form-group textarea { width: 100%; padding: 0.75rem; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; color: white; font-size: 1rem; font-family: inherit; }
+        .form-group textarea { resize: vertical; }
+        .form-group input[type="file"] { padding: 0.5rem; }
+        .image-preview { margin-top: 1rem; border-radius: 8px; overflow: hidden; position: relative; }
+        .image-preview img { width: 100%; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; }
+        .delete-image-btn { position: absolute; top: 10px; right: 10px; background: rgba(239, 68, 68, 0.9); border: none; border-radius: 50%; width: 40px; height: 40px; font-size: 20px; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 10; }
+        .delete-image-btn:hover { background: rgba(220, 38, 38, 1); transform: scale(1.1); box-shadow: 0 6px 16px rgba(239, 68, 68, 0.5); }
+        .modal-actions { display: flex; gap: 1rem; margin-top: 1.5rem; }
+        .btn-secondary { flex: 1; padding: 0.75rem; background: rgba(255,255,255,0.1); border: none; border-radius: 8px; color: white; cursor: pointer; transition: all 0.3s; font-size: 1rem; }
+        .btn-secondary:hover { background: rgba(255,255,255,0.2); }
+        .btn-save { flex: 1; padding: 0.75rem; background: linear-gradient(135deg, #3b82f6, #06b6d4); border: none; border-radius: 8px; color: white; font-weight: 600; cursor: pointer; transition: all 0.3s; font-size: 1rem; }
+        .btn-save:hover { transform: translateY(-2px); }
+        .empty-state { text-align: center; padding: 3rem; color: rgba(255,255,255,0.6); }
+        .image-modal-content { max-width: 1100px; width: 90%; max-height: none; }
+        .image-modal-content img { width: 100%; max-width: 100%; height: auto; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); margin-bottom: 1.5rem; box-shadow: 0 4px 20px rgba(0,0,0,0.5); transition: transform 0.3s ease; }
+        .image-section { margin-bottom: 2rem; }
+        .image-section h3 { color: #93c5fd; margin-bottom: 1rem; font-size: 1.125rem; display: flex; align-items: center; gap: 0.5rem; }
+        .image-details { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 1rem; margin-top: 1rem; }
+        .error-message { background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.5); color: #fca5a5; padding: 0.75rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.875rem; }
+        .success-message { background: rgba(34, 197, 94, 0.2); border: 1px solid rgba(34, 197, 94, 0.5); color: #86efac; padding: 0.75rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.875rem; }
+        .event-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem; }
+        .event-actions { display: flex; gap: 0.5rem; }
+        .btn-icon { background: rgba(255,255,255,0.1); border: none; border-radius: 6px; padding: 0.4rem 0.6rem; cursor: pointer; font-size: 1rem; transition: all 0.3s; color: white; }
+        .btn-icon:hover { background: rgba(255,255,255,0.2); transform: scale(1.1); }
+        .toolbar { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+        .btn-toolbar { padding: 0.6rem 1rem; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; color: white; font-size: 0.875rem; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; gap: 0.5rem; }
+        .btn-toolbar:hover { background: rgba(255,255,255,0.15); }
+        .advanced-search { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 1.5rem; margin-bottom: 2rem; }
+        .advanced-search h3 { margin-bottom: 1rem; font-size: 1.125rem; }
+        .date-range { display: grid; grid-template-columns: 1fr 1fr auto auto; gap: 1rem; align-items: end; }
+        .date-range input { padding: 0.75rem; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; color: white; font-size: 1rem; }
+        .stats-charts { display: flex; flex-direction: column; gap: 2rem; }
+        .chart-section h3 { margin-bottom: 1rem; font-size: 1.125rem; }
+        .bar-chart { display: flex; flex-direction: column; gap: 0.75rem; }
+        .bar-item { display: flex; align-items: center; gap: 1rem; }
+        .bar-label { min-width: 80px; font-size: 0.875rem; color: #93c5fd; }
+        .bar-container { flex: 1; display: flex; align-items: center; gap: 0.5rem; background: rgba(255,255,255,0.05); border-radius: 4px; padding: 0.25rem; }
+        .bar-fill { height: 24px; background: linear-gradient(135deg, #3b82f6, #06b6d4); border-radius: 4px; transition: width 0.5s ease; }
+        .bar-value { min-width: 30px; text-align: right; font-size: 0.875rem; font-weight: 600; }
+        .toast { position: fixed; bottom: 2rem; right: 2rem; padding: 1rem 1.5rem; background: linear-gradient(135deg, #10b981, #059669); color: white; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); opacity: 0; transform: translateY(20px); transition: all 0.3s; z-index: 3000; }
+        .toast.show { opacity: 1; transform: translateY(0); }
+        input[type="file"]#importFile { display: none; }
+        
+        /* Scroll suave para el modal */
+        .modal { scroll-behavior: smooth; -webkit-overflow-scrolling: touch; }
+        .modal::-webkit-scrollbar { width: 12px; }
+        .modal::-webkit-scrollbar-track { background: rgba(0,0,0,0.3); border-radius: 10px; }
+        .modal::-webkit-scrollbar-thumb { background: rgba(59,130,246,0.5); border-radius: 10px; }
+        .modal::-webkit-scrollbar-thumb:hover { background: rgba(59,130,246,0.7); }
+        
+        /* Asegurar que las imágenes grandes se vean bien */
+        .image-modal-content .image-section img { 
+            display: block; 
+            margin-left: auto; 
+            margin-right: auto;
+            cursor: zoom-in;
+        }
+        
+        /* Zoom en imágenes */
+        .image-modal-content .image-section img:hover {
+            transform: scale(1.02);
+        }
+        
+        .image-modal-content .image-section img.zoomed {
+            cursor: zoom-out;
+            transform: scale(1.5);
+            position: relative;
+            z-index: 10;
+        }
+        
+        /* Contenedor de imagen con zoom */
+        .image-section {
+            position: relative;
+            overflow: visible;
+        }
+        
+        /* Botones de zoom */
+        .zoom-controls {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+            justify-content: flex-end;
+        }
+        
+        .zoom-btn {
+            background: rgba(59,130,246,0.3);
+            border: 1px solid rgba(59,130,246,0.5);
+            color: white;
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+        
+        .zoom-btn:hover {
+            background: rgba(59,130,246,0.5);
+            transform: translateY(-2px);
+        }
+        
+        /* Modal de gráficas mensuales */
+        .chart-modal-content {
+            max-width: 1200px;
+            width: 95%;
+        }
+        
+        .chart-tabs {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            border-bottom: 2px solid rgba(59,130,246,0.3);
+        }
+        
+        .chart-tab {
+            padding: 0.75rem 1.5rem;
+            background: transparent;
+            border: none;
+            color: rgba(255,255,255,0.6);
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: all 0.3s;
+            border-bottom: 3px solid transparent;
+            margin-bottom: -2px;
+        }
+        
+        .chart-tab:hover {
+            color: white;
+        }
+        
+        .chart-tab.active {
+            color: white;
+            border-bottom-color: #3b82f6;
+        }
+        
+        .chart-view {
+            display: none;
+        }
+        
+        .chart-view.active {
+            display: block;
+        }
+        
+        .timeline-chart {
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-top: 1rem;
+        }
+        
+        .timeline-line {
+            position: relative;
+            height: 300px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
+            padding: 1rem 1rem 3rem 1rem;
+            overflow-x: auto;
+        }
+        
+        .timeline-grid {
+            display: flex;
+            gap: 0.5rem;
+            height: 100%;
+            align-items: flex-end;
+            min-width: 100%;
+        }
+        
+        .timeline-bar {
+            flex: 1;
+            min-width: 30px;
+            background: linear-gradient(180deg, #3b82f6, #06b6d4);
+            border-radius: 4px 4px 0 0;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .timeline-bar:hover {
+            background: linear-gradient(180deg, #60a5fa, #22d3ee);
+            transform: translateY(-5px);
+        }
+        
+        .timeline-bar-label {
+            position: absolute;
+            bottom: -30px;
+            left: 50%;
+            transform: translateX(-50%) rotate(-45deg);
+            font-size: 0.7rem;
+            color: white;
+            white-space: nowrap;
+            transform-origin: center;
+            z-index: 100;
+        }
+        
+        .timeline-bar-value {
+            position: absolute;
+            top: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.875rem;
+            font-weight: bold;
+            color: white;
+            background: rgba(59,130,246,0.8);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            white-space: nowrap;
+        }
+        
+        .monthly-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        
+        .month-card {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            padding: 1rem;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        
+        .month-card:hover {
+            border-color: rgba(59,130,246,0.5);
+            transform: translateY(-2px);
+            background: rgba(255,255,255,0.08);
+        }
+        
+        .month-card-header {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #93c5fd;
+            margin-bottom: 0.5rem;
+        }
+        
+        .month-card-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: white;
+        }
+        
+        .month-card-label {
+            font-size: 0.75rem;
+            color: rgba(255,255,255,0.6);
+            margin-top: 0.25rem;
+        }
+        
+        .stat-card {
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 25px rgba(59,130,246,0.3);
+        }
+        
+        /* Attached Files */
+        .file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.75rem 1rem;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+        
+        .file-item:hover {
+            background: rgba(255,255,255,0.08);
+            border-color: rgba(59,130,246,0.5);
+        }
+        
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            flex: 1;
+        }
+        
+        .file-icon {
+            font-size: 1.5rem;
+        }
+        
+        .file-details {
+            flex: 1;
+        }
+        
+        .file-name {
+            color: white;
+            font-weight: 500;
+            margin-bottom: 0.25rem;
+        }
+        
+        .file-size {
+            color: rgba(255,255,255,0.6);
+            font-size: 0.75rem;
+        }
+        
+        .file-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .file-btn {
+            padding: 0.4rem 0.8rem;
+            background: rgba(59,130,246,0.3);
+            border: 1px solid rgba(59,130,246,0.5);
+            border-radius: 6px;
+            color: white;
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: all 0.3s;
+        }
+        
+        .file-btn:hover {
+            background: rgba(59,130,246,0.5);
+            transform: translateY(-2px);
+        }
+        
+        .file-btn.delete {
+            background: rgba(239, 68, 68, 0.3);
+            border-color: rgba(239, 68, 68, 0.5);
+        }
+        
+        .file-btn.delete:hover {
+            background: rgba(239, 68, 68, 0.5);
+        }
+        
+        /* Scatter Plot */
+        .scatter-plot {
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-top: 1rem;
+        }
+        
+        .scatter-container {
+            position: relative;
+            height: 400px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
+            padding: 2rem;
+            overflow: hidden;
+        }
+        
+        .scatter-grid {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            border-left: 2px solid rgba(59,130,246,0.3);
+            border-bottom: 2px solid rgba(59,130,246,0.3);
+        }
+        
+        .scatter-point {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: linear-gradient(135deg, #3b82f6, #06b6d4);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 0 10px rgba(59,130,246,0.5);
+        }
+        
+        .scatter-point:hover {
+            transform: scale(2);
+            background: linear-gradient(135deg, #60a5fa, #22d3ee);
+            box-shadow: 0 0 20px rgba(59,130,246,0.8);
+            z-index: 10;
+        }
+        
+        .scatter-point::after {
+            content: attr(data-label);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.9);
+            color: white;
+            padding: 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+            margin-bottom: 5px;
+        }
+        
+        .scatter-point:hover::after {
+            opacity: 1;
+        }
+        
+        .scatter-axis-label {
+            position: absolute;
+            color: #93c5fd;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+        
+        .scatter-axis-x {
+            bottom: -30px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        
+        .scatter-axis-y {
+            left: -80px;
+            top: 50%;
+            transform: translateY(-50%) rotate(-90deg);
+        }
+        
+        .scatter-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+        
+        .scatter-stat-item {
+            background: rgba(255,255,255,0.05);
+            padding: 1rem;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .scatter-stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: white;
+        }
+        
+        .scatter-stat-label {
+            font-size: 0.75rem;
+            color: rgba(255,255,255,0.6);
+            margin-top: 0.25rem;
+        }
+        
+        @media (max-width: 768px) { 
+            .controls-grid { grid-template-columns: 1fr; } 
+            .gallery-grid { grid-template-columns: 1fr; } 
+            .stats-grid { grid-template-columns: 1fr; } 
+            .date-range { grid-template-columns: 1fr; } 
+            .toolbar { justify-content: center; } 
+            .toast { right: 1rem; left: 1rem; }
+            .image-modal-content { width: 100%; max-width: 100%; padding: 1rem; }
+            .modal { padding: 0.5rem; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <div class="logo-section">
+                <div class="logo" role="img" aria-label="Satellite icon">🛰️</div>
+                <div class="title-section">
+                    <h1 id="mainTitle">VRSS-2 Time Calibration Registry</h1>
+                    <p id="mainSubtitle">GPS ⟷ OBDH UTC Mode Changes</p>
+                </div>
+            </div>
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <button class="refresh-btn" id="refreshBtn" aria-label="Refresh data" title="Refresh data from cloud">
+                    <span id="refreshIcon">🔄</span>
+                    <span id="refreshText">Refresh</span>
+                </button>
+                <button class="lang-btn" id="langToggle" aria-label="Toggle language"><span id="langBtn">🇪🇸 ES</span></button>
+                <button class="lang-btn" id="logoutBtn" aria-label="Logout" title="Cerrar sesión" style="background: rgba(239,68,68,0.2); border: 1px solid rgba(239,68,68,0.3);">
+                    <span>🚪 Salir</span>
+                </button>
+            </div>
+        </div>
+    </header>
+    <div class="container">
+        <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+            <div class="stat-card"><div class="stat-card-header"><span class="stat-icon" role="img" aria-label="Statistics">📊</span><span class="stat-value" id="totalEvents">0</span></div><div class="stat-label" id="totalEventsLabel">Total Events</div></div>
+            <div class="stat-card"><div class="stat-card-header"><span class="stat-icon" role="img" aria-label="Calendar">📅</span><span class="stat-value" id="lastEvent">-</span></div><div class="stat-label" id="lastEventLabel">Last Event</div></div>
+            <div class="stat-card"><div class="stat-card-header"><span class="stat-icon" role="img" aria-label="Average">📈</span><span class="stat-value" id="avgPerMonth">0</span></div><div class="stat-label" id="avgPerMonthLabel">Avg/Month</div></div>
+            <div class="stat-card" id="infoCard" style="cursor: pointer;"><div class="stat-card-header"><span class="stat-icon" role="img" aria-label="Information">ℹ️</span><span class="stat-value" style="font-size: 1.5rem;">📄</span></div><div class="stat-label" id="infoLabel">Information</div></div>
+            <div class="stat-card" id="normalModeCard" style="cursor: pointer;"><div class="stat-card-header"><span class="stat-icon" role="img" aria-label="Normal Mode">✅</span><span class="stat-value" style="font-size: 1.5rem;">🖼️</span></div><div class="stat-label" id="normalModeLabel">Normal Mode</div></div>
+        </div>
+        <!-- Toolbar -->
+        <div class="toolbar">
+            <button class="btn-toolbar" id="exportBtn" aria-label="Generate report">
+                <span>📄</span><span id="exportText">Generate Report</span>
+            </button>
+            <button class="btn-toolbar" id="statsBtn" aria-label="View statistics">
+                <span>📊</span><span id="statsText">Statistics</span>
+            </button>
+        </div>
+
+        <!-- Advanced Search -->
+        <div class="advanced-search">
+            <h3 id="advancedSearchTitle">🔍 Advanced Search</h3>
+            <div class="date-range">
+                <div class="form-group">
+                    <label for="dateFrom" id="dateFromLabel">From Date</label>
+                    <input type="date" id="dateFrom">
+                </div>
+                <div class="form-group">
+                    <label for="dateTo" id="dateToLabel">To Date</label>
+                    <input type="date" id="dateTo">
+                </div>
+                <button class="btn-toolbar" id="applyFilters" aria-label="Apply filters">
+                    <span id="applyFiltersText">Apply</span>
+                </button>
+                <button class="btn-toolbar" id="clearFilters" aria-label="Clear filters">
+                    <span id="clearFiltersText">Clear</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="controls-panel">
+            <div class="controls-grid">
+                <div class="search-box"><span class="search-icon" role="img" aria-label="Search">🔍</span><input type="text" id="searchInput" placeholder="Search by date..." aria-label="Search events by date"></div>
+                <select id="yearFilter" aria-label="Filter by year"><option value="all">All</option></select>
+                <button class="btn-primary" id="addEventBtn" aria-label="Add new event"><span role="img" aria-hidden="true">➕</span><span id="addEventText">Add New Event</span></button>
+            </div>
+        </div>
+        <div class="gallery-section"><div class="gallery-header"><span role="img" aria-label="Calendar">📅</span><span id="galleryTitle">Events Gallery</span></div><div id="gallery" class="gallery-grid" role="list"></div></div>
+    </div>
+    <div id="uploadModal" class="modal" role="dialog" aria-labelledby="uploadTitle" aria-modal="true">
+        <div class="modal-content">
+            <div class="modal-header"><h2 class="modal-title" id="uploadTitle">Upload Event</h2><button class="close-btn" id="closeUpload" aria-label="Close modal">✕</button></div>
+            <div id="uploadError" style="display:none;"></div>
+            <div class="form-group"><label for="eventDate" id="dateLabel">Event Date</label><input type="date" id="eventDate" required aria-required="true"></div>
+            <div class="form-group"><label for="eventImage" id="imageLabel">Change Image (Max 2MB)</label><input type="file" id="eventImage" accept="image/*" aria-describedby="imageHelp"><small id="imageHelp" style="color: #93c5fd; font-size: 0.75rem;">Image showing the mode change. Max size: 2MB</small></div>
+            <div id="imagePreview" class="image-preview" style="display:none;"></div>
+            <div class="form-group"><label for="eventImageReturn" id="imageReturnLabel">Return Graph (Max 2MB)</label><input type="file" id="eventImageReturn" accept="image/*" aria-describedby="imageReturnHelp"><small id="imageReturnHelp" style="color: #93c5fd; font-size: 0.75rem;">Graph showing the return to normal. Max size: 2MB</small></div>
+            <div id="imageReturnPreview" class="image-preview" style="display:none;"></div>
+            <div class="form-group"><label for="eventDescription" id="descLabel">Description (optional)</label><textarea id="eventDescription" rows="3" maxlength="500" aria-describedby="descHelp"></textarea><small id="descHelp" style="color: #93c5fd; font-size: 0.75rem;">Max 500 characters</small></div>
+            <div class="modal-actions"><button class="btn-secondary" id="cancelBtn">Cancel</button><button class="btn-save" id="saveBtn">Save Event</button></div>
+        </div>
+    </div>
+    <div id="imageModal" class="modal" role="dialog" aria-labelledby="imageModalDate" aria-modal="true">
+        <div class="modal-content image-modal-content">
+            <div class="modal-header"><div><h2 class="modal-title" id="imageModalDate"></h2><p style="color:#93c5fd;" id="imageModalLabel">TMK061</p></div><button class="close-btn" id="closeImage" aria-label="Close modal">✕</button></div>
+            <div id="imageModalContent"></div>
+        </div>
+    </div>
+    <!-- Statistics Modal -->
+    <div id="statsModal" class="modal" role="dialog" aria-labelledby="statsModalTitle" aria-modal="true">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title" id="statsModalTitle">📊 Statistics</h2>
+                <button class="close-btn" id="closeStats" aria-label="Close modal">✕</button>
+            </div>
+            <div id="statsContent"></div>
+        </div>
+    </div>
+    <!-- Monthly Charts Modal -->
+    <div id="monthlyChartsModal" class="modal" role="dialog" aria-labelledby="monthlyChartsTitle" aria-modal="true">
+        <div class="modal-content chart-modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title" id="monthlyChartsTitle">📈 Monthly Analysis</h2>
+                <button class="close-btn" id="closeMonthlyCharts" aria-label="Close modal">✕</button>
+            </div>
+            <div class="chart-tabs">
+                <button class="chart-tab active" data-tab="timeline" id="timelineTab">Timeline</button>
+                <button class="chart-tab" data-tab="monthly" id="monthlyTab">By Month</button>
+            </div>
+            <div id="monthlyChartsContent">
+                <div id="timelineView" class="chart-view active"></div>
+                <div id="monthlyView" class="chart-view"></div>
+            </div>
+        </div>
+    </div>
+    <!-- Information Modal -->
+    <div id="infoModal" class="modal" role="dialog" aria-labelledby="infoModalTitle" aria-modal="true">
+        <div class="modal-content" style="max-width: 1000px;">
+            <div class="modal-header">
+                <h2 class="modal-title" id="infoModalTitle">ℹ️ Information</h2>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button class="btn-icon" id="editInfoBtn" title="Edit Information" style="padding: 0.5rem 1rem;">✏️ <span id="editInfoText">Edit</span></button>
+                    <button class="close-btn" id="closeInfo" aria-label="Close modal">✕</button>
+                </div>
+            </div>
+            
+            <!-- View Mode -->
+            <div id="infoViewMode">
+                <div id="infoContent" style="line-height: 1.8; color: rgba(255,255,255,0.9);"></div>
+                
+                <!-- Attached Files Section -->
+                <div id="attachedFilesSection" style="margin-top: 2rem; display: none;">
+                    <h3 style="color: #93c5fd; margin-bottom: 1rem; font-size: 1.125rem;">📎 Attached Files</h3>
+                    <div id="attachedFilesList" style="display: flex; flex-direction: column; gap: 0.5rem;"></div>
+                </div>
+            </div>
+            
+            <!-- Edit Mode -->
+            <div id="infoEditMode" style="display: none;">
+                <div class="form-group">
+                    <label for="infoTextEditor" style="color: #93c5fd; margin-bottom: 0.5rem; display: block;">Content:</label>
+                    <textarea id="infoTextEditor" rows="15" style="width: 100%; padding: 1rem; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; color: white; font-family: inherit; font-size: 0.95rem; line-height: 1.6;"></textarea>
+                </div>
+                
+                <div class="form-group" style="margin-top: 1.5rem;">
+                    <label style="color: #93c5fd; margin-bottom: 0.5rem; display: block;">📎 Attach Files:</label>
+                    <input type="file" id="attachFileInput" multiple accept=".txt,.doc,.docx,.xls,.xlsx,.pdf,.zip,.rar" style="display: none;">
+                    <button class="btn-secondary" onclick="document.getElementById('attachFileInput').click()" style="width: 100%;">
+                        📁 <span id="selectFilesText">Select Files</span> (TXT, Word, Excel, PDF, ZIP)
+                    </button>
+                    <div id="selectedFilesList" style="margin-top: 1rem;"></div>
+                </div>
+                
+                <div class="form-group" style="margin-top: 1.5rem;">
+                    <h4 style="color: #93c5fd; margin-bottom: 0.5rem;">Current Attached Files:</h4>
+                    <div id="currentAttachedFiles"></div>
+                </div>
+                
+                <div class="modal-actions" style="margin-top: 1.5rem;">
+                    <button class="btn-secondary" id="cancelEditInfo"><span id="cancelEditText">Cancel</span></button>
+                    <button class="btn-save" id="saveEditInfo"><span id="saveEditText">Save Changes</span></button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Normal Mode Modal -->
+    <div id="normalModeModal" class="modal" role="dialog" aria-labelledby="normalModeTitle" aria-modal="true">
+        <div class="modal-content image-modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title" id="normalModeTitle">✅ Normal Working Mode</h2>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button class="btn-icon" id="editNormalModeBtn" title="Edit Image" style="padding: 0.5rem 1rem;">✏️ <span id="editNormalText">Edit</span></button>
+                    <button class="close-btn" id="closeNormalMode" aria-label="Close modal">✕</button>
+                </div>
+            </div>
+            
+            <!-- View Mode -->
+            <div id="normalModeView">
+                <div id="normalModeImageContainer" style="text-align: center;">
+                    <p id="noImageText" style="color: rgba(255,255,255,0.6); padding: 3rem;">No image uploaded yet. Click Edit to upload an image.</p>
+                    <img id="normalModeImage" style="display: none; width: 100%; max-width: 100%; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);" alt="Normal Mode">
+                </div>
+            </div>
+            
+            <!-- Edit Mode -->
+            <div id="normalModeEdit" style="display: none;">
+                <div class="form-group">
+                    <label style="color: #93c5fd; margin-bottom: 0.5rem; display: block;">Upload Image:</label>
+                    <input type="file" id="normalModeImageInput" accept="image/*" style="display: none;">
+                    <button class="btn-secondary" onclick="document.getElementById('normalModeImageInput').click()" style="width: 100%;">
+                        🖼️ <span id="selectImageText">Select Image</span>
+                    </button>
+                    <div id="normalModePreview" style="margin-top: 1rem; display: none;">
+                        <img id="normalModePreviewImg" style="width: 100%; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);" alt="Preview">
+                    </div>
+                </div>
+                
+                <div class="modal-actions" style="margin-top: 1.5rem;">
+                    <button class="btn-secondary" id="cancelNormalMode"><span id="cancelNormalText">Cancel</span></button>
+                    <button class="btn-save" id="saveNormalMode"><span id="saveNormalText">Save Image</span></button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    
+    <!-- Load Firebase-enabled JavaScript -->
+    <script src="app-firebase-complete.js"></script>
+    
+    <!-- Logout functionality -->
+    <script>
+        document.getElementById('logoutBtn').addEventListener('click', () => {
+            if (confirm('¿Está seguro que desea cerrar sesión?')) {
+                sessionStorage.removeItem('authenticated');
+                sessionStorage.removeItem('username');
+                window.location.href = '/';
+            }
+        });
+    </script>
+</body>
+</html>
