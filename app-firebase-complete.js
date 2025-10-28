@@ -1497,78 +1497,74 @@ class VRSS2App {
     // EDIT EVENT
     // ============================================
     editEvent(event) {
+        // Guardar referencia al evento actual para edición
         this.currentEditingEvent = {
             originalDate: event.date,  // Guardamos la fecha original
             event: event
         };
         
+        // Obtener referencias a los elementos del DOM
         const modal = document.getElementById('uploadModal');
         const title = document.getElementById('uploadTitle');
         const saveBtn = document.getElementById('saveBtn');
         const dateInput = document.getElementById('eventDate');
         const descInput = document.getElementById('eventDescription');
+        const imagePreview = document.getElementById('imagePreview');
+        const imageReturnPreview = document.getElementById('imageReturnPreview');
         
-        // Configuramos el modal para edición
+        // Configurar el modal para edición
         title.textContent = TRANSLATIONS[this.language].editTitle;
         saveBtn.textContent = TRANSLATIONS[this.language].updateBtn;
         
-        // Habilitamos la edición de la fecha
+        // Configurar los campos del formulario
         dateInput.value = event.date;
-        dateInput.disabled = false;
-        
-        // Configuramos la descripción
+        dateInput.disabled = false;  // Habilitar edición de fecha
         descInput.value = event.description || '';
         
-        // Configuramos la vista previa de las imágenes
+        // Limpiar vistas previas anteriores
+        this.currentImagePreview = null;
+        this.currentReturnImagePreview = null;
+        
+        // Configurar vista previa de la imagen de cambio
         if (event.imageChange || event.image) {
             const imgUrl = event.imageChange?.url || event.image?.url || event.imageChange || event.image;
             this.currentImagePreview = imgUrl;
-            const preview = document.getElementById('imagePreview');
-            preview.style.backgroundImage = `url(${imgUrl})`;
-            preview.classList.add('has-image');
+            imagePreview.innerHTML = `
+                <img src="${imgUrl}" alt="Preview">
+                <button class="delete-image-btn" onclick="app.removeImagePreview('imagePreview', 'currentImagePreview')" title="Eliminar imagen">🗑️</button>
+            `;
+            imagePreview.style.display = 'block';
+        } else {
+            imagePreview.innerHTML = '';
+            imagePreview.style.display = 'none';
         }
         
+        // Configurar vista previa de la imagen de retorno
         if (event.imageReturn) {
-            this.currentReturnImagePreview = event.imageReturn.url || event.imageReturn;
-            const returnPreview = document.getElementById('imageReturnPreview');
-            if (returnPreview) {
-                returnPreview.style.backgroundImage = `url(${this.currentReturnImagePreview})`;
-                returnPreview.classList.add('has-image');
+            const returnImgUrl = event.imageReturn.url || event.imageReturn;
+            this.currentReturnImagePreview = returnImgUrl;
+            if (imageReturnPreview) {
+                imageReturnPreview.innerHTML = `
+                    <img src="${returnImgUrl}" alt="Preview">
+                    <button class="delete-image-btn" onclick="app.removeImagePreview('imageReturnPreview', 'currentReturnImagePreview')" title="Eliminar imagen">🗑️</button>
+                `;
+                imageReturnPreview.style.display = 'block';
             }
+        } else if (imageReturnPreview) {
+            imageReturnPreview.innerHTML = '';
+            imageReturnPreview.style.display = 'none';
         }
         
         // Limpiar inputs de archivo
         document.getElementById('eventImage').value = '';
-        if (document.getElementById('eventImageReturn')) {
-            document.getElementById('eventImageReturn').value = '';
+        const returnImageInput = document.getElementById('eventImageReturn');
+        if (returnImageInput) {
+            returnImageInput.value = '';
         }
         
         // Mostrar el modal
         modal.classList.add('show');
-        if (changeImage) {
-            this.currentImagePreview = changeImage;
-            const preview = document.getElementById('imagePreview');
-            preview.innerHTML = `
-                <img src="${changeImage}" alt="Preview">
-                <button class="delete-image-btn" onclick="app.removeImagePreview('imagePreview', 'currentImagePreview')" title="Eliminar imagen">🗑️</button>
-            `;
-            preview.style.display = 'block';
-        }
-        
-        // Load return image if exists
-        if (event.imageReturn) {
-            this.currentReturnImagePreview = event.imageReturn;
-            const previewReturn = document.getElementById('imageReturnPreview');
-            if (previewReturn) {
-                previewReturn.innerHTML = `
-                    <img src="${event.imageReturn}" alt="Preview">
-                    <button class="delete-image-btn" onclick="app.removeImagePreview('imageReturnPreview', 'currentReturnImagePreview')" title="Eliminar imagen">🗑️</button>
-                `;
-                previewReturn.style.display = 'block';
-            }
-        }
-        
-        document.getElementById('uploadModal').classList.add('active');
+        modal.classList.add('active');
         this.clearError();
     }
 
