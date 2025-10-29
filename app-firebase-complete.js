@@ -790,8 +790,14 @@ class VRSS2App {
         try {
             const dbEvents = await this.dbManager.getAllEvents();
             
-            // Merge initial data with database events
-            const allDates = new Set([...INITIAL_DATA, ...dbEvents.map(e => e.date)]);
+            // Cargar lista de eventos eliminados desde Firebase
+            const deletedEvents = await this.loadDeletedEvents();
+            
+            // Filtrar INITIAL_DATA para excluir eventos eliminados
+            const filteredInitialData = INITIAL_DATA.filter(date => !deletedEvents.includes(date));
+            
+            // Merge initial data (sin eliminados) con database events
+            const allDates = new Set([...filteredInitialData, ...dbEvents.map(e => e.date)]);
             
             this.events = Array.from(allDates).map(date => {
                 const dbEvent = dbEvents.find(e => e.date === date);
@@ -800,11 +806,39 @@ class VRSS2App {
 
             // Sort by date descending
             this.events.sort((a, b) => new Date(b.date) - new Date(a.date));
+            
+            console.log(`✅ Loaded ${this.events.length} events (${deletedEvents.length} deleted events filtered)`);
         } catch (error) {
             console.error('Error loading events:', error);
             // Fallback to initial data only
             this.events = INITIAL_DATA.map(date => ({ date, description: '', image: null }));
             this.events.sort((a, b) => new Date(b.date) - new Date(a.date));
+        }
+    }
+
+    async loadDeletedEvents() {
+        try {
+            const config = await this.dbManager.getSystemConfig();
+            return config?.deletedEvents || [];
+        } catch (error) {
+            console.error('Error loading deleted events:', error);
+            return [];
+        }
+    }
+
+    async saveDeletedEvent(date) {
+        try {
+            const deletedEvents = await this.loadDeletedEvents();
+            if (!deletedEvents.includes(date)) {
+                deletedEvents.push(date);
+                await this.dbManager.saveSystemConfig({ 
+                    deletedEvents,
+                    lastUpdated: Date.now() 
+                });
+                console.log(`✅ Event ${date} marked as deleted in Firebase`);
+            }
+        } catch (error) {
+            console.error('Error saving deleted event:', error);
         }
     }
 
@@ -873,10 +907,14 @@ class VRSS2App {
 
     async saveSystemConfigToFirebase() {
         try {
+            // Cargar eventos eliminados actuales para preservarlos
+            const deletedEvents = await this.loadDeletedEvents();
+            
             const config = {
                 normalModeImage: this.normalModeImage,
                 customInfo: this.customInfo,
                 attachedFiles: this.attachedFiles,
+                deletedEvents: deletedEvents, // Preservar lista de eliminados
                 lastUpdated: Date.now()
             };
             await this.dbManager.saveSystemConfig(config);
@@ -1613,6 +1651,10 @@ class VRSS2App {
                     await this.deleteImageFromCloudinary(event.imageReturn);
                 }
             }
+            
+            // Guardar en la lista de eventos eliminados permanentemente
+            await this.saveDeletedEvent(date);
+            console.log(`✅ Event ${date} added to deleted list`);
             
             // Delete from Firebase
             await this.dbManager.deleteEvent(date);
