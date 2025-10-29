@@ -29,15 +29,18 @@ const MAX_DESCRIPTION_LENGTH = 500;
 const CLOUDINARY_CONFIG = {
     cloudName: 'dg4b24dgj',
     apiKey: '742723723254997',
-    uploadPreset: 'vrss2_unsigned'
+    uploadPreset: 'vrss2_unsigned'  // Crearemos esto después
 };
 
+// URL base de Cloudinary
 const CLOUDINARY_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CONFIG.cloudName}/auto/upload`;
 const CLOUDINARY_BASE_URL = `https://res.cloudinary.com/${CLOUDINARY_CONFIG.cloudName}`;
 
 // ============================================
 // FIREBASE CONFIGURATION
 // ============================================
+// IMPORTANTE: Reemplaza estos valores con tu configuración de Firebase
+// Instrucciones completas en: FIREBASE-SETUP.md
 const FIREBASE_CONFIG = {
     apiKey: "AIzaSyDcMjlhYtzfGdHF7W8h9PIekdwfmKIWoT8AQUI",
     authDomain: "vrss2-app.firebaseapp.com",
@@ -214,13 +217,16 @@ class DatabaseManager {
 
     async init() {
         try {
+            // Inicializar Firebase
             if (!firebase.apps.length) {
                 firebase.initializeApp(FIREBASE_CONFIG);
                 console.log('🔥 Firebase app initialized');
             }
             
+            // Obtener referencia a Firestore
             this.db = firebase.firestore();
             
+            // Habilitar persistencia offline para que funcione sin internet
             try {
                 await this.db.enablePersistence();
                 console.log('✅ Firebase offline persistence enabled');
@@ -236,7 +242,7 @@ class DatabaseManager {
             console.log('✅ Firebase Database initialized successfully');
         } catch (error) {
             console.error('❌ Firebase initialization error:', error);
-            console.error('🔍 Please check your Firebase configuration in FIREBASE_CONFIG');
+            console.error('📝 Please check your Firebase configuration in FIREBASE_CONFIG');
             throw error;
         }
     }
@@ -247,6 +253,7 @@ class DatabaseManager {
         }
         
         try {
+            // Guardar en Firestore usando la fecha como ID del documento
             await this.db.collection('events').doc(event.date).set(event);
             console.log(`✅ Event saved to Firebase: ${event.date}`);
         } catch (error) {
@@ -302,6 +309,7 @@ class DatabaseManager {
         }
     }
 
+    // BONUS: Escuchar cambios en tiempo real (sincronización automática)
     onEventsChange(callback) {
         if (!this.initialized) {
             throw new Error('Firebase not initialized');
@@ -319,6 +327,7 @@ class DatabaseManager {
         });
     }
 
+    // Guardar configuración del sistema (Modo Normal, Info, etc.)
     async saveSystemConfig(config) {
         if (!this.initialized) {
             throw new Error('Firebase not initialized');
@@ -333,6 +342,7 @@ class DatabaseManager {
         }
     }
 
+    // Obtener configuración del sistema
     async getSystemConfig() {
         if (!this.initialized) {
             throw new Error('Firebase not initialized');
@@ -356,12 +366,14 @@ class DatabaseManager {
 // UTILITY FUNCTIONS
 // ============================================
 const Utils = {
+    // Sanitize HTML to prevent XSS
     sanitizeHTML(str) {
         const div = document.createElement('div');
         div.textContent = str;
         return div.innerHTML;
     },
 
+    // Format date for display
     formatDate(dateStr) {
         const date = new Date(dateStr + 'T00:00:00');
         return date.toLocaleDateString('en-US', { 
@@ -371,6 +383,7 @@ const Utils = {
         });
     },
 
+    // Validate date format
     isValidDate(dateStr) {
         const regex = /^\d{4}-\d{2}-\d{2}$/;
         if (!regex.test(dateStr)) return false;
@@ -378,6 +391,7 @@ const Utils = {
         return date instanceof Date && !isNaN(date);
     },
 
+    // Compress image if needed
     async compressImage(file, maxSize) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -388,6 +402,7 @@ const Utils = {
                     let width = img.width;
                     let height = img.height;
 
+                    // Calculate new dimensions if image is too large
                     const maxDimension = 1920;
                     if (width > maxDimension || height > maxDimension) {
                         if (width > height) {
@@ -404,9 +419,11 @@ const Utils = {
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
 
+                    // Try different quality levels
                     let quality = 0.9;
                     let dataUrl = canvas.toDataURL('image/jpeg', quality);
 
+                    // Reduce quality if still too large
                     while (dataUrl.length > maxSize && quality > 0.1) {
                         quality -= 0.1;
                         dataUrl = canvas.toDataURL('image/jpeg', quality);
@@ -422,6 +439,7 @@ const Utils = {
         });
     },
 
+    // Upload image to Cloudinary
     async uploadToCloudinary(file, folder = 'events') {
         try {
             console.log(`📤 Uploading to Cloudinary: ${file.name}`);
@@ -490,22 +508,28 @@ class VRSS2App {
     // EVENT BINDING
     // ============================================
     bindEvents() {
+        // Logout button
         const logoutBtn = document.getElementById('logoutBtn');
         if (logoutBtn) {
             logoutBtn.addEventListener('click', () => {
+                // Limpiar la sesión
                 sessionStorage.removeItem('authenticated');
+                // Redirigir a la página de inicio de sesión
                 window.location.href = 'index.html';
             });
         }
         
+        // Refresh button
         document.getElementById('refreshBtn').addEventListener('click', () => {
             this.refreshData();
         });
 
+        // Language toggle
         document.getElementById('langToggle').addEventListener('click', () => {
             this.toggleLanguage();
         });
 
+        // Modal controls
         document.getElementById('addEventBtn').addEventListener('click', () => {
             this.openUploadModal();
         });
@@ -526,6 +550,7 @@ class VRSS2App {
             this.closeImageModal();
         });
 
+        // Search and filter
         document.getElementById('searchInput').addEventListener('input', () => {
             this.renderGallery();
         });
@@ -534,6 +559,7 @@ class VRSS2App {
             this.renderGallery();
         });
 
+        // Image previews
         document.getElementById('eventImage').addEventListener('change', (e) => {
             this.handleImagePreview(e, 'imagePreview', 'currentImagePreview');
         });
@@ -545,6 +571,7 @@ class VRSS2App {
             });
         }
 
+        // Close modals on escape key
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 this.closeUploadModal();
@@ -552,6 +579,7 @@ class VRSS2App {
             }
         });
 
+        // Close modals on background click
         document.getElementById('uploadModal').addEventListener('click', (e) => {
             if (e.target.id === 'uploadModal') {
                 this.closeUploadModal();
@@ -564,6 +592,7 @@ class VRSS2App {
             }
         });
 
+        // Generate Report button
         const exportBtn = document.getElementById('exportBtn');
         if (exportBtn) {
             exportBtn.addEventListener('click', () => {
@@ -571,6 +600,7 @@ class VRSS2App {
             });
         }
 
+        // Advanced search
         const applyFiltersBtn = document.getElementById('applyFilters');
         if (applyFiltersBtn) {
             applyFiltersBtn.addEventListener('click', () => {
@@ -585,6 +615,7 @@ class VRSS2App {
             });
         }
 
+        // Statistics button
         const statsBtn = document.getElementById('statsBtn');
         if (statsBtn) {
             statsBtn.addEventListener('click', () => {
@@ -592,6 +623,7 @@ class VRSS2App {
             });
         }
 
+        // Close stats modal
         const closeStats = document.getElementById('closeStats');
         if (closeStats) {
             closeStats.addEventListener('click', () => {
@@ -608,6 +640,8 @@ class VRSS2App {
             });
         }
 
+        
+        // Monthly charts modal
         const closeMonthlyCharts = document.getElementById('closeMonthlyCharts');
         if (closeMonthlyCharts) {
             closeMonthlyCharts.addEventListener('click', () => {
@@ -624,19 +658,23 @@ class VRSS2App {
             });
         }
         
+        // Chart tabs
         const chartTabs = document.querySelectorAll('.chart-tab');
         chartTabs.forEach(tab => {
             tab.addEventListener('click', () => {
                 const targetTab = tab.dataset.tab;
                 
+                // Update active tab
                 chartTabs.forEach(t => t.classList.remove('active'));
                 tab.classList.add('active');
                 
+                // Update active view
                 document.querySelectorAll('.chart-view').forEach(v => v.classList.remove('active'));
                 document.getElementById(targetTab + 'View').classList.add('active');
             });
         });
         
+        // Information modal
         const infoCard = document.getElementById('infoCard');
         if (infoCard) {
             infoCard.addEventListener('click', () => {
@@ -660,6 +698,7 @@ class VRSS2App {
             });
         }
         
+        // Edit information button
         const editInfoBtn = document.getElementById('editInfoBtn');
         if (editInfoBtn) {
             editInfoBtn.addEventListener('click', () => {
@@ -667,6 +706,7 @@ class VRSS2App {
             });
         }
         
+        // Cancel edit
         const cancelEditInfo = document.getElementById('cancelEditInfo');
         if (cancelEditInfo) {
             cancelEditInfo.addEventListener('click', () => {
@@ -674,6 +714,7 @@ class VRSS2App {
             });
         }
         
+        // Save edit
         const saveEditInfo = document.getElementById('saveEditInfo');
         if (saveEditInfo) {
             saveEditInfo.addEventListener('click', () => {
@@ -681,6 +722,7 @@ class VRSS2App {
             });
         }
         
+        // Attach files
         const attachFileInput = document.getElementById('attachFileInput');
         if (attachFileInput) {
             attachFileInput.addEventListener('change', (e) => {
@@ -688,6 +730,7 @@ class VRSS2App {
             });
         }
         
+        // Normal Mode modal
         const normalModeCard = document.getElementById('normalModeCard');
         if (normalModeCard) {
             normalModeCard.addEventListener('click', () => {
@@ -747,6 +790,7 @@ class VRSS2App {
         try {
             const dbEvents = await this.dbManager.getAllEvents();
             
+            // Merge initial data with database events
             const allDates = new Set([...INITIAL_DATA, ...dbEvents.map(e => e.date)]);
             
             this.events = Array.from(allDates).map(date => {
@@ -754,9 +798,11 @@ class VRSS2App {
                 return dbEvent || { date, description: '', image: null };
             });
 
+            // Sort by date descending
             this.events.sort((a, b) => new Date(b.date) - new Date(a.date));
         } catch (error) {
             console.error('Error loading events:', error);
+            // Fallback to initial data only
             this.events = INITIAL_DATA.map(date => ({ date, description: '', image: null }));
             this.events.sort((a, b) => new Date(b.date) - new Date(a.date));
         }
@@ -783,23 +829,30 @@ class VRSS2App {
         const t = TRANSLATIONS[this.language];
         
         try {
+            // Show loading state
             btn.disabled = true;
             icon.classList.add('refreshing');
             text.textContent = t === TRANSLATIONS.en ? 'Refreshing...' : 'Actualizando...';
             
             console.log('🔄 Refreshing data from Firebase...');
             
+            // Reload events
             await this.loadEvents();
+            
+            // Reload system config
             await this.loadSystemConfig();
             
+            // Update UI
             this.renderGallery();
             this.updateStats();
             this.populateYearFilter();
             
             console.log('✅ Data refreshed successfully');
             
+            // Show success feedback
             text.textContent = t === TRANSLATIONS.en ? 'Updated!' : '¡Actualizado!';
             
+            // Reset button after 1 second
             setTimeout(() => {
                 text.textContent = t === TRANSLATIONS.en ? 'Refresh' : 'Actualizar';
                 icon.classList.remove('refreshing');
@@ -834,6 +887,7 @@ class VRSS2App {
     }
 
     setupRealtimeSync() {
+        // Listen for system config changes in real-time
         try {
             this.dbManager.db.collection('system').doc('config')
                 .onSnapshot(doc => {
@@ -841,16 +895,19 @@ class VRSS2App {
                         const config = doc.data();
                         const updated = [];
                         
+                        // Update Normal Mode Image if changed
                         if (config.normalModeImage !== this.normalModeImage) {
                             this.normalModeImage = config.normalModeImage;
                             updated.push('Normal Mode Image');
                         }
                         
+                        // Update Custom Info if changed
                         if (config.customInfo !== this.customInfo) {
                             this.customInfo = config.customInfo;
                             updated.push('System Info');
                         }
                         
+                        // Update Attached Files if changed
                         if (JSON.stringify(config.attachedFiles) !== JSON.stringify(this.attachedFiles)) {
                             this.attachedFiles = config.attachedFiles || [];
                             updated.push('Attached Files');
@@ -874,8 +931,10 @@ class VRSS2App {
         const imageReturnInput = document.getElementById('eventImageReturn');
         const descInput = document.getElementById('eventDescription');
 
+        // Clear previous errors
         this.clearError();
 
+        // Validate date
         const date = dateInput.value;
         if (!date) {
             this.showError(TRANSLATIONS[this.language].errorDateRequired);
@@ -887,8 +946,8 @@ class VRSS2App {
             return;
         }
 
-        // Check for duplicate (only if not editing OR if editing and date changed)
-        if (!this.currentEditingEvent || this.currentEditingEvent !== date) {
+        // Check for duplicate (only if not editing)
+        if (!this.currentEditingEvent) {
             const existingEvent = this.events.find(e => e.date === date);
             if (existingEvent && (existingEvent.image || existingEvent.imageChange)) {
                 this.showError(TRANSLATIONS[this.language].errorDateDuplicate);
@@ -896,26 +955,32 @@ class VRSS2App {
             }
         }
 
+        // Validate change image
         const file = imageInput.files[0];
         if (file) {
+            // Check file type
             if (!file.type.startsWith('image/')) {
                 this.showError(TRANSLATIONS[this.language].errorImageType);
                 return;
             }
 
+            // Check file size
             if (file.size > MAX_IMAGE_SIZE) {
                 this.showError(TRANSLATIONS[this.language].errorImageSize);
                 return;
             }
         }
 
+        // Validate return image
         const fileReturn = imageReturnInput ? imageReturnInput.files[0] : null;
         if (fileReturn) {
+            // Check file type
             if (!fileReturn.type.startsWith('image/')) {
                 this.showError(TRANSLATIONS[this.language].errorImageType);
                 return;
             }
 
+            // Check file size
             if (fileReturn.size > MAX_IMAGE_SIZE) {
                 this.showError(TRANSLATIONS[this.language].errorImageSize);
                 return;
@@ -923,6 +988,7 @@ class VRSS2App {
         }
 
         try {
+            // Show loading state
             const saveBtn = document.getElementById('saveBtn');
             saveBtn.disabled = true;
             saveBtn.textContent = this.language === 'en' ? 'Saving...' : 'Guardando...';
@@ -930,6 +996,7 @@ class VRSS2App {
             let imageData = this.currentImagePreview;
             if (file) {
                 console.log(`📸 Uploading change image to Cloudinary: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
+                // Upload to Cloudinary
                 imageData = await Utils.uploadToCloudinary(file, 'events');
                 console.log(`✅ Change image uploaded to Cloudinary`);
             }
@@ -937,17 +1004,21 @@ class VRSS2App {
             let imageReturnData = this.currentReturnImagePreview;
             if (fileReturn) {
                 console.log(`📸 Uploading return image to Cloudinary: ${fileReturn.name} (${(fileReturn.size / 1024 / 1024).toFixed(2)}MB)`);
+                // Upload to Cloudinary
                 imageReturnData = await Utils.uploadToCloudinary(fileReturn, 'events');
                 console.log(`✅ Return image uploaded to Cloudinary`);
             }
 
+            // Sanitize description
             const description = Utils.sanitizeHTML(descInput.value.trim().substring(0, MAX_DESCRIPTION_LENGTH));
 
+            // Create event object with support for multiple images
             const event = {
                 date,
                 description,
-                imageChange: imageData,
-                imageReturn: imageReturnData,
+                imageChange: imageData, // Imagen de cambio
+                imageReturn: imageReturnData, // Imagen de devolución
+                // Mantener compatibilidad con versión anterior
                 image: imageData,
                 timestamp: Date.now()
             };
@@ -958,19 +1029,14 @@ class VRSS2App {
                 description: description ? 'Yes' : 'No'
             });
 
-            // If editing and date changed, delete old event
-            if (this.currentEditingEvent && this.currentEditingEvent !== date) {
-                console.log(`🔄 Date changed from ${this.currentEditingEvent} to ${date}, deleting old event...`);
-                await this.dbManager.deleteEvent(this.currentEditingEvent);
-                this.events = this.events.filter(e => e.date !== this.currentEditingEvent);
-            }
-
-            const wasEditing = !!this.currentEditingEvent;
+            // Clear editing flags
             this.currentEditingEvent = null;
             this.currentReturnImagePreview = null;
 
+            // Save to IndexedDB
             await this.dbManager.saveEvent(event);
 
+            // Update local events array
             const index = this.events.findIndex(e => e.date === date);
             if (index >= 0) {
                 this.events[index] = event;
@@ -979,8 +1045,10 @@ class VRSS2App {
                 this.events.sort((a, b) => new Date(b.date) - new Date(a.date));
             }
 
+            // Show success message
             this.showSuccess(TRANSLATIONS[this.language].successSaved);
 
+            // Close modal and refresh UI
             setTimeout(() => {
                 this.closeUploadModal();
                 this.renderGallery();
@@ -1006,11 +1074,13 @@ class VRSS2App {
         const searchTerm = document.getElementById('searchInput').value.toLowerCase();
         const yearFilter = document.getElementById('yearFilter').value;
 
+        // Filter events
         let filteredEvents = this.events.filter(event => {
             const matchesSearch = event.date.includes(searchTerm) || 
                                  (event.description && event.description.toLowerCase().includes(searchTerm));
             const matchesYear = yearFilter === 'all' || event.date.startsWith(yearFilter);
             
+            // Advanced date filters
             let matchesDateRange = true;
             if (this.advancedFilters) {
                 const eventDate = new Date(event.date);
@@ -1027,6 +1097,7 @@ class VRSS2App {
             return matchesSearch && matchesYear && matchesDateRange;
         });
 
+        // Clear gallery
         gallery.innerHTML = '';
 
         if (filteredEvents.length === 0) {
@@ -1038,6 +1109,7 @@ class VRSS2App {
             return;
         }
 
+        // Render event cards
         filteredEvents.forEach(event => {
             const card = this.createEventCard(event);
             gallery.appendChild(card);
@@ -1074,16 +1146,19 @@ class VRSS2App {
             </div>
         `;
 
+        // Edit button
         card.querySelector('.edit-btn').addEventListener('click', (e) => {
             e.stopPropagation();
             this.editEvent(event);
         });
 
+        // Delete button
         card.querySelector('.delete-btn').addEventListener('click', (e) => {
             e.stopPropagation();
             this.deleteEvent(event.date);
         });
 
+        // Card click to view
         card.addEventListener('click', () => {
             this.openImageModal(event);
         });
@@ -1106,6 +1181,7 @@ class VRSS2App {
             const lastEventDate = this.events[0].date;
             document.getElementById('lastEvent').textContent = Utils.formatDate(lastEventDate);
 
+            // Calculate average per month
             const firstDate = new Date(this.events[this.events.length - 1].date);
             const lastDate = new Date(this.events[0].date);
             const monthsDiff = (lastDate.getFullYear() - firstDate.getFullYear()) * 12 + 
@@ -1113,6 +1189,7 @@ class VRSS2App {
             const avgPerMonth = (totalEvents / monthsDiff).toFixed(1);
             document.getElementById('avgPerMonth').textContent = avgPerMonth;
             
+            // Make avgPerMonth card clickable
             const avgCard = document.getElementById('avgPerMonth').closest('.stat-card');
             if (avgCard && !avgCard.dataset.listenerAdded) {
                 avgCard.style.cursor = 'pointer';
@@ -1144,6 +1221,7 @@ class VRSS2App {
     // MODAL MANAGEMENT
     // ============================================
     openUploadModal() {
+        // Reset editing state
         this.currentEditingEvent = null;
         document.getElementById('uploadTitle').textContent = TRANSLATIONS[this.language].uploadTitle;
         document.getElementById('saveBtn').textContent = TRANSLATIONS[this.language].saveBtn;
@@ -1156,6 +1234,7 @@ class VRSS2App {
         document.getElementById('imagePreview').style.display = 'none';
         this.currentImagePreview = null;
         
+        // Clear return image fields
         const eventImageReturn = document.getElementById('eventImageReturn');
         const imageReturnPreview = document.getElementById('imageReturnPreview');
         if (eventImageReturn) eventImageReturn.value = '';
@@ -1164,6 +1243,7 @@ class VRSS2App {
         
         this.clearError();
         
+        // Focus on date input
         setTimeout(() => {
             document.getElementById('eventDate').focus();
         }, 100);
@@ -1185,6 +1265,7 @@ class VRSS2App {
 
         let html = '';
 
+        // Show change image (usar imageChange o image para compatibilidad)
         const changeImage = event.imageChange || event.image;
         if (changeImage) {
             html += `
@@ -1209,6 +1290,7 @@ class VRSS2App {
             `;
         }
 
+        // Show return image if exists
         if (event.imageReturn) {
             html += `
                 <div class="image-section">
@@ -1232,6 +1314,7 @@ class VRSS2App {
             `;
         }
 
+        // Show description if exists
         if (event.description) {
             html += `
                 <div class="image-details" style="margin-top: 1rem;">
@@ -1240,6 +1323,7 @@ class VRSS2App {
             `;
         }
 
+        // If no images, show message
         if (!changeImage && !event.imageReturn) {
             html = `
                 <div class="image-details">
@@ -1261,6 +1345,7 @@ class VRSS2App {
         const preview = document.getElementById(previewId);
 
         if (file) {
+            // Validate file type
             if (!file.type.startsWith('image/')) {
                 this.showError(TRANSLATIONS[this.language].errorImageType);
                 e.target.value = '';
@@ -1268,6 +1353,7 @@ class VRSS2App {
                 return;
             }
 
+            // Validate file size
             if (file.size > MAX_IMAGE_SIZE) {
                 this.showError(TRANSLATIONS[this.language].errorImageSize);
                 e.target.value = '';
@@ -1297,6 +1383,7 @@ class VRSS2App {
         preview.innerHTML = '';
         this[propertyName] = null;
         
+        // Clear file input
         if (previewId === 'imagePreview') {
             document.getElementById('eventImage').value = '';
         } else if (previewId === 'imageReturnPreview') {
@@ -1318,6 +1405,7 @@ class VRSS2App {
     updateLanguage() {
         const t = TRANSLATIONS[this.language];
         
+        // Update all translatable elements
         document.getElementById('mainTitle').textContent = t.mainTitle;
         document.getElementById('mainSubtitle').textContent = t.mainSubtitle;
         document.getElementById('totalEventsLabel').textContent = t.totalEventsLabel;
@@ -1342,6 +1430,7 @@ class VRSS2App {
         document.getElementById('refreshText').textContent = this.language === 'en' ? 'Refresh' : 'Actualizar';
         document.getElementById('imageModalLabel').textContent = t.modeChange;
 
+        // Update new UI elements
         const exportText = document.getElementById('exportText');
         if (exportText) exportText.textContent = t.exportBtn;
         
@@ -1366,7 +1455,10 @@ class VRSS2App {
         const statsModalTitle = document.getElementById('statsModalTitle');
         if (statsModalTitle) statsModalTitle.textContent = `📊 ${t.statistics}`;
 
+        // Update year filter
         this.populateYearFilter();
+        
+        // Re-render gallery to update labels
         this.renderGallery();
     }
 
@@ -1401,9 +1493,10 @@ class VRSS2App {
         document.getElementById('uploadTitle').textContent = TRANSLATIONS[this.language].editTitle;
         document.getElementById('saveBtn').textContent = TRANSLATIONS[this.language].updateBtn;
         document.getElementById('eventDate').value = event.date;
-        document.getElementById('eventDate').disabled = false; // Allow date editing
+        document.getElementById('eventDate').disabled = true; // Can't change date
         document.getElementById('eventDescription').value = event.description || '';
         
+        // Load change image (usar imageChange o image para compatibilidad)
         const changeImage = event.imageChange || event.image;
         if (changeImage) {
             this.currentImagePreview = changeImage;
@@ -1415,6 +1508,7 @@ class VRSS2App {
             preview.style.display = 'block';
         }
         
+        // Load return image if exists
         if (event.imageReturn) {
             this.currentReturnImagePreview = event.imageReturn;
             const previewReturn = document.getElementById('imageReturnPreview');
@@ -1441,14 +1535,18 @@ class VRSS2App {
         try {
             await this.dbManager.deleteEvent(date);
             
+            // Remove from local array
             this.events = this.events.filter(e => e.date !== date);
             
+            // Show success message
             this.showSuccessToast(TRANSLATIONS[this.language].successDeleted);
             
+            // Update UI
             this.renderGallery();
             this.updateStats();
             this.populateYearFilter();
             
+            // Close modal if open
             this.closeImageModal();
         } catch (error) {
             console.error('Error deleting event:', error);
@@ -1457,25 +1555,29 @@ class VRSS2App {
     }
 
     // ============================================
-    // GENERATE REPORT - Parte 1
+    // GENERATE REPORT
     // ============================================
     async generateReport() {
         try {
             const t = TRANSLATIONS[this.language];
             const events = [...this.events].sort((a, b) => new Date(a.date) - new Date(b.date));
             
+            // Get custom info or default
             const infoText = this.customInfo || t.infoContent;
             
+            // Calculate statistics
             const totalEvents = events.length;
             const firstDate = events.length > 0 ? Utils.formatDate(events[0].date) : '-';
             const lastDate = events.length > 0 ? Utils.formatDate(events[events.length - 1].date) : '-';
             
+            // Group by year
             const byYear = {};
             events.forEach(event => {
                 const year = event.date.substring(0, 4);
                 byYear[year] = (byYear[year] || 0) + 1;
             });
             
+            // Generate HTML report
             const reportHTML = `
 <!DOCTYPE html>
 <html lang="${this.language}">
@@ -1588,6 +1690,7 @@ class VRSS2App {
 </html>
             `;
             
+            // Convert HTML to Word-compatible format with proper encoding
             const wordContent = `
 <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
 <head>
@@ -1733,6 +1836,7 @@ ${reportHTML.match(/<body>([\s\S]*)<\/body>/)[1]}
 </html>
             `;
             
+            // Create and download Word file
             const blob = new Blob(['\ufeff', wordContent], { 
                 type: 'application/msword;charset=utf-8' 
             });
@@ -1799,6 +1903,7 @@ ${reportHTML.match(/<body>([\s\S]*)<\/body>/)[1]}
         
         let html = '<div class="stats-charts">';
         
+        // Events by Year
         html += `<div class="chart-section">
             <h3>${TRANSLATIONS[this.language].eventsPerYear}</h3>
             <div class="bar-chart">`;
@@ -1818,6 +1923,7 @@ ${reportHTML.match(/<body>([\s\S]*)<\/body>/)[1]}
         
         html += `</div></div>`;
         
+        // Events by Month (last 12 months)
         html += `<div class="chart-section">
             <h3>${TRANSLATIONS[this.language].eventsPerMonth} (Last 12)</h3>
             <div class="bar-chart">`;
@@ -1850,11 +1956,15 @@ ${reportHTML.match(/<body>([\s\S]*)<\/body>/)[1]}
         const modal = document.getElementById('monthlyChartsModal');
         const t = TRANSLATIONS[this.language];
         
+        // Update title and tabs
         document.getElementById('monthlyChartsTitle').textContent = `📈 ${t.monthlyAnalysis}`;
         document.getElementById('timelineTab').textContent = t.timelineTab;
         document.getElementById('monthlyTab').textContent = t.monthlyTab;
         
+        // Generate timeline view
         this.generateTimelineView();
+        
+        // Generate monthly view
         this.generateMonthlyView();
         
         modal.classList.add('active');
@@ -1864,6 +1974,7 @@ ${reportHTML.match(/<body>([\s\S]*)<\/body>/)[1]}
         const timelineView = document.getElementById('timelineView');
         const t = TRANSLATIONS[this.language];
         
+        // Group events by month
         const monthlyData = {};
         this.events.forEach(event => {
             const date = new Date(event.date);
@@ -1871,6 +1982,7 @@ ${reportHTML.match(/<body>([\s\S]*)<\/body>/)[1]}
             monthlyData[monthKey] = (monthlyData[monthKey] || 0) + 1;
         });
         
+        // Sort by date
         const sortedMonths = Object.entries(monthlyData).sort();
         const maxValue = Math.max(...Object.values(monthlyData));
         
@@ -1916,6 +2028,7 @@ ${reportHTML.match(/<body>([\s\S]*)<\/body>/)[1]}
         const monthlyView = document.getElementById('monthlyView');
         const t = TRANSLATIONS[this.language];
         
+        // Group events by month
         const monthlyData = {};
         this.events.forEach(event => {
             const date = new Date(event.date);
@@ -1930,6 +2043,7 @@ ${reportHTML.match(/<body>([\s\S]*)<\/body>/)[1]}
             monthlyData[monthKey].events.push(event);
         });
         
+        // Sort by date (most recent first)
         const sortedMonths = Object.entries(monthlyData).sort().reverse();
         
         const monthNames = t === TRANSLATIONS.en 
@@ -1966,16 +2080,20 @@ ${reportHTML.match(/<body>([\s\S]*)<\/body>/)[1]}
     }
     
     filterByMonth(monthKey) {
+        // Close modal
         document.getElementById('monthlyChartsModal').classList.remove('active');
         
+        // Set date filters
         const [year, month] = monthKey.split('-');
         const dateFrom = `${year}-${month}-01`;
         const lastDay = new Date(year, month, 0).getDate();
         const dateTo = `${year}-${month}-${lastDay}`;
         
+        // Apply filters
         this.advancedFilters = { dateFrom, dateTo };
         this.renderGallery();
         
+        // Scroll to gallery
         document.querySelector('.gallery-section').scrollIntoView({ behavior: 'smooth' });
     }
 
@@ -1987,11 +2105,14 @@ ${reportHTML.match(/<body>([\s\S]*)<\/body>/)[1]}
         const content = document.getElementById('infoContent');
         const t = TRANSLATIONS[this.language];
         
+        // Update title
         document.getElementById('infoModalTitle').textContent = `ℹ️ ${t.infoTitle}`;
         document.getElementById('editInfoText').textContent = t.editInfoBtn;
         
+        // Use custom info if available, otherwise use default
         const infoText = this.customInfo || t.infoContent;
         
+        // Format content with paragraphs
         const paragraphs = infoText.split('\n\n');
         let html = '';
         
@@ -2003,8 +2124,10 @@ ${reportHTML.match(/<body>([\s\S]*)<\/body>/)[1]}
         
         content.innerHTML = html;
         
+        // Show attached files if any
         this.renderAttachedFiles();
         
+        // Make sure we're in view mode
         document.getElementById('infoViewMode').style.display = 'block';
         document.getElementById('infoEditMode').style.display = 'none';
         
@@ -2081,25 +2204,32 @@ ${reportHTML.match(/<body>([\s\S]*)<\/body>/)[1]}
         const t = TRANSLATIONS[this.language];
         const infoText = this.customInfo || t.infoContent;
         
+        // Set editor content
         document.getElementById('infoTextEditor').value = infoText;
         
+        // Update button texts
         document.getElementById('cancelEditText').textContent = t.cancel;
         document.getElementById('saveEditText').textContent = t.saveChanges;
         document.getElementById('selectFilesText').textContent = t.selectFilesText;
         
+        // Show current attached files in edit mode
         this.renderCurrentAttachedFiles();
         
+        // Switch to edit mode
         document.getElementById('infoViewMode').style.display = 'none';
         document.getElementById('infoEditMode').style.display = 'block';
         
+        // Clear pending files
         this.pendingFiles = [];
         document.getElementById('selectedFilesList').innerHTML = '';
     }
     
     exitEditMode() {
+        // Switch back to view mode
         document.getElementById('infoViewMode').style.display = 'block';
         document.getElementById('infoEditMode').style.display = 'none';
         
+        // Clear pending files
         this.pendingFiles = [];
     }
     
@@ -2152,8 +2282,10 @@ ${reportHTML.match(/<body>([\s\S]*)<\/body>/)[1]}
         const t = TRANSLATIONS[this.language];
         const newContent = document.getElementById('infoTextEditor').value;
         
+        // Save custom content
         this.customInfo = newContent;
         
+        // Process pending files - Upload to Cloudinary
         if (this.pendingFiles.length > 0) {
             for (const file of this.pendingFiles) {
                 console.log(`📤 Uploading file to Cloudinary: ${file.name}`);
@@ -2163,18 +2295,22 @@ ${reportHTML.match(/<body>([\s\S]*)<\/body>/)[1]}
                 this.attachedFiles.push({
                     name: file.name,
                     size: file.size,
-                    url: fileUrl,
+                    url: fileUrl,  // URL instead of Base64
                     timestamp: Date.now()
                 });
             }
+            // Clear pending files
             this.pendingFiles = [];
         }
         
+        // Save to Firebase
         await this.saveSystemConfigToFirebase();
         
+        // Exit edit mode and refresh view
         this.exitEditMode();
         this.showInformation();
         
+        // Show success message
         this.showSuccessToast(t.infoSaved);
     }
     
@@ -2192,9 +2328,10 @@ ${reportHTML.match(/<body>([\s\S]*)<\/body>/)[1]}
         if (!file) return;
         
         const link = document.createElement('a');
+        // Use URL if available, otherwise use data (for backward compatibility)
         link.href = file.url || file.data;
         link.download = file.name;
-        link.target = '_blank';
+        link.target = '_blank';  // Open in new tab for URLs
         link.click();
     }
     
@@ -2204,11 +2341,14 @@ ${reportHTML.match(/<body>([\s\S]*)<\/body>/)[1]}
         
         this.attachedFiles.splice(index, 1);
         
+        // Save to Firebase
         await this.saveSystemConfigToFirebase();
         
-        this.renderCurrentAttachedFiles();
-        this.showInformation();
+        // Refresh both views
+        this.renderCurrentAttachedFiles();  // Edit mode
+        this.showInformation();              // View mode
         
+        // Show success message
         this.showSuccessToast(t.deleteFile + ' ✅');
     }
 
@@ -2219,9 +2359,11 @@ ${reportHTML.match(/<body>([\s\S]*)<\/body>/)[1]}
         const modal = document.getElementById('normalModeModal');
         const t = TRANSLATIONS[this.language];
         
+        // Update title
         document.getElementById('normalModeTitle').textContent = `✅ ${t.normalModeTitle}`;
         document.getElementById('editNormalText').textContent = t.editInfoBtn;
         
+        // Show image if exists
         const noImageText = document.getElementById('noImageText');
         const normalModeImage = document.getElementById('normalModeImage');
         
@@ -2235,6 +2377,7 @@ ${reportHTML.match(/<body>([\s\S]*)<\/body>/)[1]}
             normalModeImage.style.display = 'none';
         }
         
+        // Make sure we're in view mode
         document.getElementById('normalModeView').style.display = 'block';
         document.getElementById('normalModeEdit').style.display = 'none';
         
@@ -2244,10 +2387,12 @@ ${reportHTML.match(/<body>([\s\S]*)<\/body>/)[1]}
     enterNormalModeEdit() {
         const t = TRANSLATIONS[this.language];
         
+        // Update button texts
         document.getElementById('selectImageText').textContent = t.selectImage;
         document.getElementById('cancelNormalText').textContent = t.cancel;
         document.getElementById('saveNormalText').textContent = t.saveImage;
         
+        // Show current image in preview if exists
         if (this.normalModeImage) {
             document.getElementById('normalModePreviewImg').src = this.normalModeImage;
             document.getElementById('normalModePreview').style.display = 'block';
@@ -2255,16 +2400,20 @@ ${reportHTML.match(/<body>([\s\S]*)<\/body>/)[1]}
             document.getElementById('normalModePreview').style.display = 'none';
         }
         
+        // Switch to edit mode
         document.getElementById('normalModeView').style.display = 'none';
         document.getElementById('normalModeEdit').style.display = 'block';
         
+        // Clear pending image
         this.pendingNormalModeImage = null;
     }
     
     exitNormalModeEdit() {
+        // Switch back to view mode
         document.getElementById('normalModeView').style.display = 'block';
         document.getElementById('normalModeEdit').style.display = 'none';
         
+        // Clear pending image
         this.pendingNormalModeImage = null;
         document.getElementById('normalModeImageInput').value = '';
     }
@@ -2273,18 +2422,22 @@ ${reportHTML.match(/<body>([\s\S]*)<\/body>/)[1]}
         const file = e.target.files[0];
         if (!file) return;
         
+        // Validate file type
         if (!file.type.startsWith('image/')) {
             alert(TRANSLATIONS[this.language].errorImageType);
             return;
         }
         
+        // Validate file size (max 5MB for normal mode image)
         if (file.size > 5 * 1024 * 1024) {
             alert('Image size must be less than 5MB');
             return;
         }
         
+        // Store file for later upload
         this.pendingNormalModeFile = file;
         
+        // Show preview
         const reader = new FileReader();
         reader.onload = (event) => {
             document.getElementById('normalModePreviewImg').src = event.target.result;
@@ -2297,19 +2450,24 @@ ${reportHTML.match(/<body>([\s\S]*)<\/body>/)[1]}
         const t = TRANSLATIONS[this.language];
         
         try {
+            // Upload the image if there's a pending one
             if (this.pendingNormalModeFile) {
                 console.log('📤 Uploading Normal Mode image to Cloudinary...');
                 this.normalModeImage = await Utils.uploadToCloudinary(this.pendingNormalModeFile, 'system');
                 console.log('✅ Normal Mode image uploaded to Cloudinary');
                 
+                // Clear pending file
                 this.pendingNormalModeFile = null;
                 
+                // Save to Firebase
                 await this.saveSystemConfigToFirebase();
             }
             
+            // Exit edit mode and refresh view
             this.exitNormalModeEdit();
             this.showNormalMode();
             
+            // Show success message
             this.showSuccessToast(t.normalModeSaved);
         } catch (error) {
             console.error('Error saving Normal Mode image:', error);
@@ -2345,18 +2503,22 @@ ${reportHTML.match(/<body>([\s\S]*)<\/body>/)[1]}
 function toggleImageZoom(img) {
     if (!img) return;
     
+    // Toggle zoom class
     if (img.classList.contains('zoomed')) {
         img.classList.remove('zoomed');
         img.style.cursor = 'zoom-in';
     } else {
+        // Remove zoom from other images first
         document.querySelectorAll('.image-modal-content img.zoomed').forEach(otherImg => {
             otherImg.classList.remove('zoomed');
             otherImg.style.cursor = 'zoom-in';
         });
         
+        // Add zoom to this image
         img.classList.add('zoomed');
         img.style.cursor = 'zoom-out';
         
+        // Scroll to image smoothly
         img.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 }
@@ -2364,7 +2526,7 @@ function toggleImageZoom(img) {
 // ============================================
 // INITIALIZE APPLICATION
 // ============================================
-let app;
+let app; // Global variable for onclick handlers
 
 document.addEventListener('DOMContentLoaded', () => {
     app = new VRSS2App();
