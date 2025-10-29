@@ -116,10 +116,6 @@ const TRANSLATIONS = {
         noImageUploaded: 'No Image Uploaded Yet. Click Edit To Upload An Image.',
         selectImage: 'Select Image',
         saveImage: 'Save Image',
-        deleteImage: 'Delete Image',
-        confirmDeleteImage: 'Are you sure you want to delete the normal mode image?',
-        imageDeleted: 'Image deleted successfully!',
-        errorDeletingImage: 'Error deleting image',
         normalModeSaved: 'Normal Mode Image Saved Successfully!',
         infoContent: `Since November 24, 2022, it has been observed that the time calibration indicator has frequently changed its operating mode, from GPS Time Calibration to OBDH UTC Time Calibration.
 
@@ -195,10 +191,6 @@ In Figure 1, the time calibration indicator can be seen in the recommended opera
         noImageUploaded: 'No Se Ha Subido Ninguna Imagen. Haz Clic En Editar Para Subir Una Imagen.',
         selectImage: 'Seleccionar Imagen',
         saveImage: 'Guardar Imagen',
-        deleteImage: 'Eliminar Imagen',
-        confirmDeleteImage: '¿Está seguro que desea eliminar la imagen del modo normal?',
-        imageDeleted: '¡Imagen eliminada exitosamente!',
-        errorDeletingImage: 'Error al eliminar la imagen',
         normalModeSaved: '¡Imagen Del Modo Normal Guardada Exitosamente!',
         infoContent: `Desde el 24 de noviembre de 2022, se ha observado que el indicador de calibración de tiempo ha cambiado de manera frecuente su modo de trabajo, desde GPS Time Calibration a OBDH UTC Time Calibration.
 
@@ -306,16 +298,6 @@ class DatabaseManager {
     async deleteEvent(date) {
         if (!this.initialized) {
             throw new Error('Firebase not initialized');
-        }
-        
-        try {
-            // Delete the document from Firestore
-            await this.db.collection('events').doc(date).delete();
-            console.log(`✅ Event deleted from Firebase: ${date}`);
-            return true;
-        } catch (error) {
-            console.error('❌ Error deleting event from Firebase:', error);
-            throw error;
         }
         
         try {
@@ -798,12 +780,6 @@ class VRSS2App {
             normalModeImageInput.addEventListener('change', (e) => {
                 this.handleNormalModeImageSelection(e);
             });
-        }
-        
-        // Agregar manejador para el botón de eliminar imagen del modo normal
-        const deleteNormalModeBtn = document.getElementById('deleteNormalMode');
-        if (deleteNormalModeBtn) {
-            deleteNormalModeBtn.addEventListener('click', () => this.deleteNormalModeImage());
         }
     }
 
@@ -2379,37 +2355,6 @@ ${reportHTML.match(/<body>([\s\S]*)<\/body>/)[1]}
     // ============================================
     // NORMAL MODE
     // ============================================
-    async deleteNormalModeImage() {
-        const t = TRANSLATIONS[this.language];
-        
-        if (!confirm(t.confirmDeleteImage || '¿Está seguro que desea eliminar la imagen del modo normal?')) {
-            return;
-        }
-        
-        try {
-            // Eliminar la referencia de la imagen en la configuración del sistema
-            this.normalModeImage = null;
-            
-            // Guardar la configuración actualizada
-            await this.saveSystemConfigToFirebase();
-            
-            // Actualizar la UI
-            document.getElementById('normalModePreview').style.display = 'none';
-            document.getElementById('normalModePreviewImg').src = '';
-            document.getElementById('deleteNormalMode').style.display = 'none';
-            
-            // Mostrar mensaje de éxito
-            this.showSuccess(t.imageDeleted || 'Imagen eliminada exitosamente');
-            
-            // Actualizar la vista del modo normal
-            this.showNormalMode();
-            
-        } catch (error) {
-            console.error('Error al eliminar la imagen del modo normal:', error);
-            this.showError(t.errorDeletingImage || 'Error al eliminar la imagen');
-        }
-    }
-    
     showNormalMode() {
         const modal = document.getElementById('normalModeModal');
         const t = TRANSLATIONS[this.language];
@@ -2446,17 +2391,13 @@ ${reportHTML.match(/<body>([\s\S]*)<\/body>/)[1]}
         document.getElementById('selectImageText').textContent = t.selectImage;
         document.getElementById('cancelNormalText').textContent = t.cancel;
         document.getElementById('saveNormalText').textContent = t.saveImage;
-        document.getElementById('deleteNormalText').textContent = t.deleteImage || 'Delete Image';
         
         // Show current image in preview if exists
         if (this.normalModeImage) {
             document.getElementById('normalModePreviewImg').src = this.normalModeImage;
             document.getElementById('normalModePreview').style.display = 'block';
-            // Mostrar botón de eliminar solo si hay una imagen
-            document.getElementById('deleteNormalMode').style.display = 'inline-flex';
         } else {
             document.getElementById('normalModePreview').style.display = 'none';
-            document.getElementById('deleteNormalMode').style.display = 'none';
         }
         
         // Switch to edit mode
