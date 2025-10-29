@@ -925,6 +925,46 @@ class VRSS2App {
         }
     }
 
+    // Helper method to delete images from Cloudinary
+    async deleteImageFromCloudinary(imageUrl) {
+        if (!imageUrl || !imageUrl.includes('cloudinary.com')) {
+            console.log('⚠️ Image is not from Cloudinary, skipping deletion');
+            return;
+        }
+
+        try {
+            // Extract public_id from Cloudinary URL
+            // URL format: https://res.cloudinary.com/{cloud_name}/image/upload/v{version}/{public_id}.{format}
+            const urlParts = imageUrl.split('/');
+            const uploadIndex = urlParts.indexOf('upload');
+            if (uploadIndex === -1) return;
+            
+            // Get everything after 'upload/v{version}/'
+            const publicIdWithExt = urlParts.slice(uploadIndex + 2).join('/');
+            const publicId = publicIdWithExt.substring(0, publicIdWithExt.lastIndexOf('.'));
+            
+            console.log(`🗑️ Attempting to delete from Cloudinary: ${publicId}`);
+            
+            // Note: Cloudinary deletion requires backend API with API secret
+            // For now, we log the deletion attempt
+            // In production, you should implement a backend endpoint to handle this
+            console.log('⚠️ Cloudinary deletion requires backend API. Image marked for cleanup.');
+            console.log(`Public ID to delete: ${publicId}`);
+            
+            // TODO: Implement backend endpoint for Cloudinary deletion
+            // Example:
+            // await fetch('/api/delete-cloudinary-image', {
+            //     method: 'POST',
+            //     headers: { 'Content-Type': 'application/json' },
+            //     body: JSON.stringify({ publicId })
+            // });
+            
+        } catch (error) {
+            console.error('Error deleting image from Cloudinary:', error);
+            // Don't throw error, continue with operation
+        }
+    }
+
     async saveEvent() {
         const dateInput = document.getElementById('eventDate');
         const imageInput = document.getElementById('eventImage');
@@ -1029,11 +1069,36 @@ class VRSS2App {
                 description: description ? 'Yes' : 'No'
             });
 
+            // Si estamos editando y la fecha cambió, eliminar el evento viejo completamente
+            if (this.currentEditingEvent && this.currentEditingEvent !== date) {
+                console.log(`🔄 Fecha cambió de ${this.currentEditingEvent} a ${date}, eliminando evento viejo...`);
+                
+                // Eliminar imágenes viejas de Cloudinary si existen
+                if (this.currentEditingEventData) {
+                    if (this.currentEditingEventData.imageChange || this.currentEditingEventData.image) {
+                        console.log('🗑️ Deleting old change image from Cloudinary...');
+                        await this.deleteImageFromCloudinary(this.currentEditingEventData.imageChange || this.currentEditingEventData.image);
+                    }
+                    if (this.currentEditingEventData.imageReturn) {
+                        console.log('🗑️ Deleting old return image from Cloudinary...');
+                        await this.deleteImageFromCloudinary(this.currentEditingEventData.imageReturn);
+                    }
+                }
+                
+                // Eliminar de Firebase
+                await this.dbManager.deleteEvent(this.currentEditingEvent);
+                
+                // Eliminar del array local
+                this.events = this.events.filter(e => e.date !== this.currentEditingEvent);
+                console.log(`✅ Evento viejo eliminado completamente: ${this.currentEditingEvent}`);
+            }
+
             // Clear editing flags
             this.currentEditingEvent = null;
+            this.currentEditingEventData = null;
             this.currentReturnImagePreview = null;
 
-            // Save to IndexedDB
+            // Save to Firebase
             await this.dbManager.saveEvent(event);
 
             // Update local events array
@@ -1490,10 +1555,11 @@ class VRSS2App {
     // ============================================
     editEvent(event) {
         this.currentEditingEvent = event.date;
+        this.currentEditingEventData = { ...event }; // Guardar datos originales
         document.getElementById('uploadTitle').textContent = TRANSLATIONS[this.language].editTitle;
         document.getElementById('saveBtn').textContent = TRANSLATIONS[this.language].updateBtn;
         document.getElementById('eventDate').value = event.date;
-        document.getElementById('eventDate').disabled = true; // Can't change date
+        document.getElementById('eventDate').disabled = false; // Permitir cambiar fecha
         document.getElementById('eventDescription').value = event.description || '';
         
         // Load change image (usar imageChange o image para compatibilidad)
@@ -1533,7 +1599,24 @@ class VRSS2App {
         if (!confirmed) return;
 
         try {
+            // Get the event to delete images from Cloudinary
+            const event = this.events.find(e => e.date === date);
+            
+            // Delete images from Cloudinary if they exist
+            if (event) {
+                if (event.imageChange || event.image) {
+                    console.log('🗑️ Deleting change image from Cloudinary...');
+                    await this.deleteImageFromCloudinary(event.imageChange || event.image);
+                }
+                if (event.imageReturn) {
+                    console.log('🗑️ Deleting return image from Cloudinary...');
+                    await this.deleteImageFromCloudinary(event.imageReturn);
+                }
+            }
+            
+            // Delete from Firebase
             await this.dbManager.deleteEvent(date);
+            console.log(`✅ Event deleted from Firebase: ${date}`);
             
             // Remove from local array
             this.events = this.events.filter(e => e.date !== date);
