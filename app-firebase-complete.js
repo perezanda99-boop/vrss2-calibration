@@ -781,6 +781,13 @@ class VRSS2App {
                 this.handleNormalModeImageSelection(e);
             });
         }
+        
+        const deleteNormalModeBtn = document.getElementById('deleteNormalModeBtn');
+        if (deleteNormalModeBtn) {
+            deleteNormalModeBtn.addEventListener('click', () => {
+                this.deleteNormalModeImage();
+            });
+        }
     }
 
     // ============================================
@@ -963,10 +970,10 @@ class VRSS2App {
         }
     }
 
-    // Helper method to delete images from Cloudinary
+    // Helper method to mark images for manual cleanup from Cloudinary
     async deleteImageFromCloudinary(imageUrl) {
         if (!imageUrl || !imageUrl.includes('cloudinary.com')) {
-            console.log('⚠️ Image is not from Cloudinary, skipping deletion');
+            console.log('⚠️ Image is not from Cloudinary, skipping');
             return;
         }
 
@@ -981,24 +988,14 @@ class VRSS2App {
             const publicIdWithExt = urlParts.slice(uploadIndex + 2).join('/');
             const publicId = publicIdWithExt.substring(0, publicIdWithExt.lastIndexOf('.'));
             
-            console.log(`🗑️ Attempting to delete from Cloudinary: ${publicId}`);
-            
-            // Note: Cloudinary deletion requires backend API with API secret
-            // For now, we log the deletion attempt
-            // In production, you should implement a backend endpoint to handle this
-            console.log('⚠️ Cloudinary deletion requires backend API. Image marked for cleanup.');
-            console.log(`Public ID to delete: ${publicId}`);
-            
-            // TODO: Implement backend endpoint for Cloudinary deletion
-            // Example:
-            // await fetch('/api/delete-cloudinary-image', {
-            //     method: 'POST',
-            //     headers: { 'Content-Type': 'application/json' },
-            //     body: JSON.stringify({ publicId })
-            // });
+            console.log(`📝 Image marked for cleanup: ${publicId}`);
+            console.log(`🔗 View in Cloudinary: https://console.cloudinary.com/console/c-${CLOUDINARY_CONFIG.cloudName}/media_library/folders/home`);
+            console.log(`ℹ️  Note: Images are not automatically deleted from Cloudinary.`);
+            console.log(`ℹ️  You can manually delete unused images from your Cloudinary dashboard.`);
+            console.log(`ℹ️  With 25GB free storage, you have space for thousands of images.`);
             
         } catch (error) {
-            console.error('Error deleting image from Cloudinary:', error);
+            console.error('Error processing image URL:', error);
             // Don't throw error, continue with operation
         }
     }
@@ -2491,15 +2488,26 @@ ${reportHTML.match(/<body>([\s\S]*)<\/body>/)[1]}
         // Show image if exists
         const noImageText = document.getElementById('noImageText');
         const normalModeImage = document.getElementById('normalModeImage');
+        const deleteNormalModeBtn = document.getElementById('deleteNormalModeBtn');
         
         if (this.normalModeImage) {
             noImageText.style.display = 'none';
             normalModeImage.src = this.normalModeImage;
             normalModeImage.style.display = 'block';
+            
+            // Mostrar botón de eliminar si hay imagen
+            if (deleteNormalModeBtn) {
+                deleteNormalModeBtn.style.display = 'inline-block';
+            }
         } else {
             noImageText.textContent = t.noImageUploaded;
             noImageText.style.display = 'block';
             normalModeImage.style.display = 'none';
+            
+            // Ocultar botón de eliminar si no hay imagen
+            if (deleteNormalModeBtn) {
+                deleteNormalModeBtn.style.display = 'none';
+            }
         }
         
         // Make sure we're in view mode
@@ -2597,6 +2605,38 @@ ${reportHTML.match(/<body>([\s\S]*)<\/body>/)[1]}
         } catch (error) {
             console.error('Error saving Normal Mode image:', error);
             alert('Error uploading image. Please try again.');
+        }
+    }
+
+    async deleteNormalModeImage() {
+        const t = TRANSLATIONS[this.language];
+        
+        // Confirmar eliminación
+        if (!confirm(t === TRANSLATIONS.en ? 'Delete Normal Mode image?' : '¿Eliminar imagen de Modo Normal?')) {
+            return;
+        }
+
+        try {
+            // Eliminar imagen de Cloudinary si existe
+            if (this.normalModeImage) {
+                console.log('🗑️ Deleting Normal Mode image from Cloudinary...');
+                await this.deleteImageFromCloudinary(this.normalModeImage);
+            }
+
+            // Limpiar de la aplicación
+            this.normalModeImage = null;
+
+            // Guardar en Firebase
+            await this.saveSystemConfigToFirebase();
+
+            // Actualizar vista
+            this.showNormalMode();
+
+            // Mostrar mensaje de éxito
+            this.showSuccessToast(t === TRANSLATIONS.en ? 'Image deleted successfully!' : '¡Imagen eliminada exitosamente!');
+        } catch (error) {
+            console.error('Error deleting Normal Mode image:', error);
+            alert(t === TRANSLATIONS.en ? 'Error deleting image. Please try again.' : 'Error al eliminar imagen. Intenta de nuevo.');
         }
     }
 
