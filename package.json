@@ -1,0 +1,21 @@
+{
+  "name": "vrss2-cloudinary-delete-server",
+  "version": "1.0.0",
+  "description": "Backend server to delete images from Cloudinary",
+  "main": "delete-cloudinary-server.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "start": "node delete-cloudinary-server.js",
+    "dev": "nodemon delete-cloudinary-server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "cloudinary": "^1.41.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}
