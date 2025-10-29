@@ -931,61 +931,56 @@ class VRSS2App {
         const imageReturnInput = document.getElementById('eventImageReturn');
         const descInput = document.getElementById('eventDescription');
 
-        // Limpiar errores previos
+        // Clear previous errors
         this.clearError();
 
-        // Validar fecha
-        const newDate = dateInput.value;
-        if (!newDate) {
+        // Validate date
+        const date = dateInput.value;
+        if (!date) {
             this.showError(TRANSLATIONS[this.language].errorDateRequired);
             return;
         }
 
-        if (!Utils.isValidDate(newDate)) {
+        if (!Utils.isValidDate(date)) {
             this.showError(TRANSLATIONS[this.language].errorDateRequired);
             return;
         }
 
-        // Verificar si ya existe un evento con la misma fecha (solo si es nuevo o si cambió la fecha)
-        const isEditing = !!this.currentEditingEvent;
-        const isNewDate = isEditing && this.currentEditingEvent.originalDate !== newDate;
-        
-        if (isNewDate || !isEditing) {
-            const dateExists = this.events.some(event => event.date === newDate && 
-                (!isEditing || event.date !== this.currentEditingEvent.originalDate));
-            
-            if (dateExists) {
+        // Check for duplicate (only if not editing)
+        if (!this.currentEditingEvent) {
+            const existingEvent = this.events.find(e => e.date === date);
+            if (existingEvent && (existingEvent.image || existingEvent.imageChange)) {
                 this.showError(TRANSLATIONS[this.language].errorDateDuplicate);
                 return;
             }
         }
 
-        // Validar imagen de cambio
+        // Validate change image
         const file = imageInput.files[0];
         if (file) {
-            // Verificar tipo de archivo
+            // Check file type
             if (!file.type.startsWith('image/')) {
                 this.showError(TRANSLATIONS[this.language].errorImageType);
                 return;
             }
 
-            // Verificar tamaño del archivo
+            // Check file size
             if (file.size > MAX_IMAGE_SIZE) {
                 this.showError(TRANSLATIONS[this.language].errorImageSize);
                 return;
             }
         }
 
-        // Validar imagen de retorno
-        const fileReturn = imageReturnInput?.files[0];
+        // Validate return image
+        const fileReturn = imageReturnInput ? imageReturnInput.files[0] : null;
         if (fileReturn) {
-            // Verificar tipo de archivo
+            // Check file type
             if (!fileReturn.type.startsWith('image/')) {
                 this.showError(TRANSLATIONS[this.language].errorImageType);
                 return;
             }
 
-            // Verificar tamaño del archivo
+            // Check file size
             if (fileReturn.size > MAX_IMAGE_SIZE) {
                 this.showError(TRANSLATIONS[this.language].errorImageSize);
                 return;
@@ -993,84 +988,81 @@ class VRSS2App {
         }
 
         try {
-            // Mostrar estado de carga
+            // Show loading state
             const saveBtn = document.getElementById('saveBtn');
             saveBtn.disabled = true;
             saveBtn.textContent = this.language === 'en' ? 'Saving...' : 'Guardando...';
 
-            // Subir imágenes a Cloudinary si hay archivos nuevos
             let imageData = this.currentImagePreview;
             if (file) {
-                console.log(`📸 Subiendo imagen de cambio a Cloudinary: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
+                console.log(`📸 Uploading change image to Cloudinary: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
+                // Upload to Cloudinary
                 imageData = await Utils.uploadToCloudinary(file, 'events');
-                console.log(`✅ Imagen de cambio subida a Cloudinary`);
+                console.log(`✅ Change image uploaded to Cloudinary`);
             }
 
             let imageReturnData = this.currentReturnImagePreview;
             if (fileReturn) {
-                console.log(`📸 Subiendo imagen de retorno a Cloudinary: ${fileReturn.name} (${(fileReturn.size / 1024 / 1024).toFixed(2)}MB)`);
+                console.log(`📸 Uploading return image to Cloudinary: ${fileReturn.name} (${(fileReturn.size / 1024 / 1024).toFixed(2)}MB)`);
+                // Upload to Cloudinary
                 imageReturnData = await Utils.uploadToCloudinary(fileReturn, 'events');
-                console.log(`✅ Imagen de retorno subida a Cloudinary`);
+                console.log(`✅ Return image uploaded to Cloudinary`);
             }
 
-            // Sanitizar descripción
+            // Sanitize description
             const description = Utils.sanitizeHTML(descInput.value.trim().substring(0, MAX_DESCRIPTION_LENGTH));
 
-            // Crear objeto de evento
-            const eventData = {
-                date: newDate,
-                description: description,
+            // Create event object with support for multiple images
+            const event = {
+                date,
+                description,
                 imageChange: imageData, // Imagen de cambio
-                imageReturn: imageReturnData, // Imagen de retorno
+                imageReturn: imageReturnData, // Imagen de devolución
                 // Mantener compatibilidad con versión anterior
                 image: imageData,
                 timestamp: Date.now()
             };
             
-            console.log(`💾 Guardando evento: ${newDate}`, {
+            console.log(`💾 Saving event: ${date}`, {
                 hasChangeImage: !!imageData,
                 hasReturnImage: !!imageReturnData,
-                description: description ? 'Sí' : 'No'
+                description: description ? 'Yes' : 'No'
             });
 
-            // Si estamos editando y cambió la fecha, eliminamos el evento anterior
-            if (isEditing && isNewDate) {
-                await this.dbManager.deleteEvent(this.currentEditingEvent.originalDate);
-                this.events = this.events.filter(e => e.date !== this.currentEditingEvent.originalDate);
-            }
-
-            // Guardar el evento
-            await this.dbManager.saveEvent(eventData);
-
-            // Actualizar la lista local de eventos
-            const eventIndex = this.events.findIndex(e => e.date === newDate);
-            if (eventIndex >= 0) {
-                this.events[eventIndex] = eventData;
-            } else {
-                this.events.push(eventData);
-                this.events.sort((a, b) => new Date(b.date) - new Date(a.date));
-            }
-
-            // Limpiar banderas de edición
+            // Clear editing flags
             this.currentEditingEvent = null;
             this.currentReturnImagePreview = null;
 
-            // Mostrar mensaje de éxito
+            // Save to IndexedDB
+            await this.dbManager.saveEvent(event);
+
+            // Update local events array
+            const index = this.events.findIndex(e => e.date === date);
+            if (index >= 0) {
+                this.events[index] = event;
+            } else {
+                this.events.push(event);
+                this.events.sort((a, b) => new Date(b.date) - new Date(a.date));
+            }
+
+            // Show success message
             this.showSuccess(TRANSLATIONS[this.language].successSaved);
 
-            // Cerrar el modal y actualizar la interfaz
-            this.closeUploadModal();
-            this.renderGallery();
-            this.updateStats();
-            this.populateYearFilter();
+            // Close modal and refresh UI
+            setTimeout(() => {
+                this.closeUploadModal();
+                this.renderGallery();
+                this.updateStats();
+                this.populateYearFilter();
+            }, 1000);
 
         } catch (error) {
-            console.error('Error al guardar el evento:', error);
-            this.showError('Error al guardar el evento. Por favor, inténtalo de nuevo.');
+            console.error('Error saving event:', error);
+            this.showError('Failed to save event. Please try again.');
         } finally {
             const saveBtn = document.getElementById('saveBtn');
             saveBtn.disabled = false;
-            saveBtn.textContent = isEditing ? TRANSLATIONS[this.language].updateBtn : TRANSLATIONS[this.language].saveBtn;
+            saveBtn.textContent = TRANSLATIONS[this.language].saveBtn;
         }
     }
 
@@ -1497,74 +1489,39 @@ class VRSS2App {
     // EDIT EVENT
     // ============================================
     editEvent(event) {
-        // Guardar referencia al evento actual para edición
-        this.currentEditingEvent = {
-            originalDate: event.date,  // Guardamos la fecha original
-            event: event
-        };
+        this.currentEditingEvent = event.date;
+        document.getElementById('uploadTitle').textContent = TRANSLATIONS[this.language].editTitle;
+        document.getElementById('saveBtn').textContent = TRANSLATIONS[this.language].updateBtn;
+        document.getElementById('eventDate').value = event.date;
+        document.getElementById('eventDate').disabled = true; // Can't change date
+        document.getElementById('eventDescription').value = event.description || '';
         
-        // Obtener referencias a los elementos del DOM
-        const modal = document.getElementById('uploadModal');
-        const title = document.getElementById('uploadTitle');
-        const saveBtn = document.getElementById('saveBtn');
-        const dateInput = document.getElementById('eventDate');
-        const descInput = document.getElementById('eventDescription');
-        const imagePreview = document.getElementById('imagePreview');
-        const imageReturnPreview = document.getElementById('imageReturnPreview');
-        
-        // Configurar el modal para edición
-        title.textContent = TRANSLATIONS[this.language].editTitle;
-        saveBtn.textContent = TRANSLATIONS[this.language].updateBtn;
-        
-        // Configurar los campos del formulario
-        dateInput.value = event.date;
-        dateInput.disabled = false;  // Habilitar edición de fecha
-        descInput.value = event.description || '';
-        
-        // Limpiar vistas previas anteriores
-        this.currentImagePreview = null;
-        this.currentReturnImagePreview = null;
-        
-        // Configurar vista previa de la imagen de cambio
-        if (event.imageChange || event.image) {
-            const imgUrl = event.imageChange?.url || event.image?.url || event.imageChange || event.image;
-            this.currentImagePreview = imgUrl;
-            imagePreview.innerHTML = `
-                <img src="${imgUrl}" alt="Preview">
+        // Load change image (usar imageChange o image para compatibilidad)
+        const changeImage = event.imageChange || event.image;
+        if (changeImage) {
+            this.currentImagePreview = changeImage;
+            const preview = document.getElementById('imagePreview');
+            preview.innerHTML = `
+                <img src="${changeImage}" alt="Preview">
                 <button class="delete-image-btn" onclick="app.removeImagePreview('imagePreview', 'currentImagePreview')" title="Eliminar imagen">🗑️</button>
             `;
-            imagePreview.style.display = 'block';
-        } else {
-            imagePreview.innerHTML = '';
-            imagePreview.style.display = 'none';
+            preview.style.display = 'block';
         }
         
-        // Configurar vista previa de la imagen de retorno
+        // Load return image if exists
         if (event.imageReturn) {
-            const returnImgUrl = event.imageReturn.url || event.imageReturn;
-            this.currentReturnImagePreview = returnImgUrl;
-            if (imageReturnPreview) {
-                imageReturnPreview.innerHTML = `
-                    <img src="${returnImgUrl}" alt="Preview">
+            this.currentReturnImagePreview = event.imageReturn;
+            const previewReturn = document.getElementById('imageReturnPreview');
+            if (previewReturn) {
+                previewReturn.innerHTML = `
+                    <img src="${event.imageReturn}" alt="Preview">
                     <button class="delete-image-btn" onclick="app.removeImagePreview('imageReturnPreview', 'currentReturnImagePreview')" title="Eliminar imagen">🗑️</button>
                 `;
-                imageReturnPreview.style.display = 'block';
+                previewReturn.style.display = 'block';
             }
-        } else if (imageReturnPreview) {
-            imageReturnPreview.innerHTML = '';
-            imageReturnPreview.style.display = 'none';
         }
         
-        // Limpiar inputs de archivo
-        document.getElementById('eventImage').value = '';
-        const returnImageInput = document.getElementById('eventImageReturn');
-        if (returnImageInput) {
-            returnImageInput.value = '';
-        }
-        
-        // Mostrar el modal
-        modal.classList.add('show');
-        modal.classList.add('active');
+        document.getElementById('uploadModal').classList.add('active');
         this.clearError();
     }
 
